@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model User {
+    id Int @id @default(autoincrement())
+    name String
+    email String @unique
+    lasrname String
+    state Boolean
+    phone String
+    password String
+    
+    Business Business[]
+    Appointment Appointment[]
+    moderations Moderation[]
+    profiles Profile[]
+    
+    @@map("users")
+}
+
+model Catalog {
+    id Int @id @default(autoincrement())
+    name String
+    business Int?
+    
+    Services Service[]
+    
+    Business Business? @relation(fields: [business], references: [id])
+    @@map("catalog")
+}
+model Service {
+    id Int @id @default(autoincrement())
+    name String
+    catalog Int?
+    
+    Appointment Appointment[]
+    Disponibility Disponibility[]
+    workingHours WorkingHours[]
+    
+    Catalog Catalog? @relation(fields: [catalog], references: [id])
+    
+    @@map("services")
+}
+
+model Business {
+    id Int @id @default(autoincrement())
+    name String
+    description String
+    owner Int?
+    
+    Owner User? @relation(fields: [owner], references: [id])
+    
+    Catalog Catalog[]
+    Inventory Inventory[]
+    
+    @@map("businesses")
+}
+
+model Appointment {
+    id Int @id @default(autoincrement())
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    userId Int
+    serviceId Int
+    status String
+    dueDate DateTime
+    
+    notifications Notification[]
+
+    user User @relation(fields: [userId], references: [id])
+    services Service @relation(fields: [serviceId], references: [id])
+    
+    @@map("appointments")
+}
+model Disponibility {
+    id Int @id @default(autoincrement())
+    date DateTime 
+    startTime DateTime
+    endTime DateTime
+    status String
+    service Int 
+    
+    Services Service @relation(fields: [service], references: [id])
+
+    @@map("disponibilities")
+}
+
+model Inventory {
+    id Int @id @default(autoincrement())
+    createTime DateTime @default(now())
+    business Int
+    Items Item[]
+    
+    Business Business @relation(fields: [business], references: [id])
+
+    @@map("inventories")
+}
+model Item {
+    id Int @id @default(autoincrement())
+    createTime DateTime @default(now())
+    name String
+    description String
+    cost Int
+    quantity Int
+    inventory Int
+    
+    Inventory Inventory @relation(fields: [inventory], references: [id])
+
+    @@map("items")
+}
+
+model Moderation {
+    id Int @id @default(autoincrement())
+    createTime DateTime @default(now())
+    userId Int
+    status String
+
+    user User @relation(fields: [userId], references: [id])
+
+    @@map("moderations")
+}
+
+model Notification {
+    id Int @id @default(autoincrement())
+    createTime DateTime @default(now())
+    title String
+    content String
+    appointmentId Int
+
+    Appointment Appointment @relation(fields: [appointmentId], references: [id])
+
+    @@map("notifications")
+}
+
+model Profile {
+    id Int @id @default(autoincrement())
+    createTime DateTime @default(now())
+    picture String
+    user Int
+    
+    User User @relation(fields: [user], references: [id])
+    
+    @@map("profiles")
+}
+
+model WorkingHours {
+    id Int @id @default(autoincrement())
+    weekDay String
+    startTime DateTime
+    endTime DateTime
+    service Int
+    
+    Services Service @relation(fields: [service], references: [id])
+    
+    @@map("working_hours")
+}
