@@ -1,5 +1,6 @@
 import { generateToken, hashPassword } from "@/app/lib/auth"
 import { prisma } from "@/app/lib/db"
+import { stat } from "fs"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
@@ -27,14 +28,19 @@ export async function POST(request: Request) {
                 email,
                 name,
                 password: hashedPassword,
-                lasrname: body.lasrname,
+                last_name: body.lasrname,
                 state: true,
                 phone: body.phone
             }
         })
         const token = await generateToken(newUser.id)
         const response = NextResponse.json({ user: newUser, token }, { status: 201 })
-        response.cookies.set("token", token, { httpOnly: true, secure: false, sameSite: "lax", maxAge: 60 * 60 * 24 * 7 })
+        response.cookies.set("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 60 * 60 * 24 * 7
+        })
         return response
     }
     catch (error) {
@@ -42,4 +48,8 @@ export async function POST(request: Request) {
     }
 
 
-}    
+}
+
+export async function GET(request: Request) {
+    return NextResponse.json({ message: "Hello World", status: 200 })
+}
