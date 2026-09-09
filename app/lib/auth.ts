@@ -3,7 +3,6 @@ import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import { User } from "../types/types";
 import { prisma } from "./db";
-import { use } from "react";
 
 const JWT_SECRET = process.env.JWT_SECRET! as string;
 
@@ -42,13 +41,14 @@ export async function getCurrentUser(): Promise<User | null> {
             where: {
                 id: decoded.userId
             }
-        })
+        }) 
         if (!userFromDb) {
             return null;
-        }
+        }   
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id, ...user } = userFromDb
         return user as User;
-
+ 
     } catch (error) {
         console.error("Error getting current user:", error);
         return null;
