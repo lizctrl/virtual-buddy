@@ -28,7 +28,7 @@ export async function POST(request: Request) {
                 email,
                 name,
                 password: hashedPassword,
-                last_name: body.lasrname,
+                last_name: body.last_name,
                 state: true,
                 phone: body.phone
             }
@@ -44,12 +44,10 @@ export async function POST(request: Request) {
         return response
     }
     catch (error) {
+        console.log(error)
         return NextResponse.json({ error: "Internal server error, Something went wrong" }, { status: 500 })
     }
 
 
 }
 
-export async function GET(request: Request) {
-    return NextResponse.json({ message: "Hello World", status: 200 })
-}
