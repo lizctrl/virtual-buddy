@@ -1,9 +1,9 @@
-export type RangesResult =
+export type RangesResult<T> =
     | {
         success: true;
-        from: number | null;
-        to: number | null;
-        excluded: number[];
+        from: T | null;
+        to: T | null;
+        excluded: T[];
     }
     | {
         success: false;
@@ -15,7 +15,7 @@ export function parseRanges(
     fromKey: string = "idFrom",
     toKey: string = "idTo",
     excludeKey: string = "excludedId"
-): RangesResult {
+): RangesResult<number> {
     const idFromParam = searchParams.get(fromKey);
     const idToParam = searchParams.get(toKey);
 
@@ -77,3 +77,59 @@ export function parseRanges(
     };
 
 }
+export function parseDateRanges(
+    searchParams: URLSearchParams,
+    fromKey: string = "createTimeFrom",
+    toKey: string = "createTimeTo",
+    excludeKey: string = "excludedCreateTime"
+): RangesResult<Date> {
+    const fromParam = searchParams.get(fromKey);
+    const toParam = searchParams.get(toKey);
+
+    const from = fromParam !== null
+        ? new Date(fromParam)
+        : null;
+
+    const to = toParam !== null
+        ? new Date(toParam)
+        : null;
+
+    const excluded = searchParams
+        .getAll(excludeKey)
+        .map(date => new Date(date))
+
+    if (
+        (from !== null && Number.isNaN(from.getTime())) ||
+        (to !== null && Number.isNaN(to.getTime()))
+    ) {
+        return {
+            success: false,
+            error: `${fromKey} and ${toKey} must be valid dates`
+        };
+    }
+
+    if (
+        from !== null &&
+        to !== null &&
+        from > to
+    ) {
+        return {
+            success: false,
+            error: `${fromKey} cannot be greater than ${toKey}`
+        };
+    }
+
+
+    if (excluded.some(date => Number.isNaN(date.getTime()))) {
+        return {
+            success: false,
+            error: `Invalid ${excludeKey} parameter, must be valid dates`
+        };
+    }
+    return {
+        success: true,
+        from: from,
+        to: to,
+        excluded: excluded
+    };
+}   

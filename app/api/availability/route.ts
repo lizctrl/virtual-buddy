@@ -1,4 +1,4 @@
-// api/appoitment? page=1&limit=10&name=&description=&idFrom=&idTo=&excludedId=&sortBy=&sortOrder=&state=true&service=true&business=true
+// api/availability? page=1&limit=10&dateFrom=&dateTo=&excludedIds=&sortBy=&sortOrder=&state=true&service=true
 
 import { parseBoolean } from "@/app/lib/api/boolean";
 import { parsePagination } from "@/app/lib/api/pagination";
@@ -30,18 +30,10 @@ export async function GET(req: NextRequest) {
     }
 
     // Filters
-    const userIdParam = searchParams.get("userId")?.trim() || null;
+    const dateFrom = searchParams.get("dateFrom")?.trim() || null;
+    const dateTo = searchParams.get("dateTo")?.trim() || null;
     const serviceIdParam = searchParams.get("serviceId")?.trim() || null;
-    const status = searchParams.get("status")?.trim() || null;
 
-    const userId = Number(userIdParam);
-
-    if (!Number.isInteger(userId) || userId <= 0) {
-        return NextResponse.json(
-            ApiResponse.invalidParameter("Invalid userId parameter"),
-            { status: 400 }
-        );
-    }
     const serviceId = Number(serviceIdParam);
 
     if (!Number.isInteger(serviceId) || serviceId <= 0) {
@@ -67,13 +59,6 @@ export async function GET(req: NextRequest) {
             { status: 400 }
         );
     }
-    const businessResult = parseBoolean(searchParams, "business");
-    if (!businessResult.success) {
-        return NextResponse.json(
-            ApiResponse.invalidParameter(businessResult.error),
-            { status: 400 }
-        );
-    }
 
     // Ranges
     const rangesResult = parseRanges(searchParams);
@@ -85,7 +70,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Sorting
-    const allowedSortFields = ["id", "dueDate", "serviceId", "status", "userId"] as const;
+    const allowedSortFields = ["id", "date", "startTime", "endTime", "status", "serviceId"] as const;
     const sortingResult = parseSorting(searchParams, allowedSortFields);
     if (!sortingResult.success) {
         return NextResponse.json(
@@ -101,14 +86,20 @@ export async function GET(req: NextRequest) {
 
     const state = stateResult.value ?? false;
     const service = serviceResult.value ?? false;
-    const business = businessResult.value ?? false;
 
     const { page, limit, skip } = paginationResult;
 
 
     // Dynamic WHERE
-    const where: Prisma.AppointmentWhereInput = {};
+    const where: Prisma.AvailabilityWhereInput = {};
 
+    if (dateFrom !== null || dateTo !== null) {
+        where.date = {
+            ...(dateFrom !== null && { gte: dateFrom }),
+            ...(dateTo !== null && { lte: dateTo })
+        };
+
+    }
 
     if (idFrom !== null || idTo !== null || excludedIds.length > 0) {
         where.id = {
@@ -118,74 +109,65 @@ export async function GET(req: NextRequest) {
         };
     }
 
-    if (state !== null) {
-        where.state = state;
-    }
-    if (status !== null) {
-        where.status = status;
-    }
-    if (userId !== null) {
-        where.userId = userId;
-    }
     if (serviceId !== null) {
         where.serviceId = serviceId;
     }
 
-    const [appointments, count] = await Promise.all([
-        prisma.appointment.findMany({
+    if (state !== null) {
+        where.state = state;
+    }
+
+
+    const [availabilities, count] = await Promise.all([
+        prisma.availability.findMany({
             where,
             take: limit,
             skip,
             select: {
                 id: true,
-                createdAt: true,
-                updatedAt: true,
-                userId: true,
-                serviceId: true,
+                date: true,
+                startTime: true,
+                endTime: true,
                 status: true,
-                dueDate: true,
+                serviceId: true,
                 state: true,
-                notifications: true,
-                service: true,
-                business: true
+                service: true
             },
             orderBy: [{ [sortBy]: sortOrder }]
         }),
-        prisma.appointment.count({
+        prisma.availability.count({
             where
         })
     ]);
 
     const totalPages = Math.ceil(count / limit);
-    return NextResponse.json(
-        ApiResponse.success(
-            "Appointments retrieved successfully",
-            {
-                appointments,
-                pagination: {
-                    page,
-                    limit,
-                    totalPages,
-                    totalItems: count,
-                    itemsOnPage: appointments.length,
-                    hasPreviousPage: page > 1,
-                    hasNextPage: page < totalPages
-                },
-                filters: {
-                    idFrom,
-                    idTo,
-                    excludedIds,
-                    state,
-                    service,
-                    business
-                },
-                sort: {
-                    by: sortBy,
-                    order: sortOrder
-                }
+    return NextResponse.json(ApiResponse.success("Availabilities retrieved successfully",
+        {
+            availabilities,
+            pagination: {
+                page,
+                limit,
+                totalPages,
+                totalItems: count,
+                itemsOnPage: availabilities.length,
+                hasPreviousPage: page > 1,
+                hasNextPage: page < totalPages
+            },
+            filters: {
+                dateFrom,
+                dateTo,
+                idFrom,
+                idTo,
+                excludedIds,
+                state,
+                service
+            },
+            sort: {
+                by: sortBy,
+                order: sortOrder
             }
-        )
-    );
+        }
+    ));
 }
 
 export async function POST(req: NextRequest) {
@@ -197,9 +179,21 @@ export async function POST(req: NextRequest) {
         );
     }
     const data = await req.json()
-    if (!data.userId) {
+    if (!data.date) {
         return NextResponse.json(
-            ApiResponse.missingField("Missing userId field"),
+            ApiResponse.missingField("Missing date field"),
+            { status: 400 }
+        );
+    }
+    if (!data.time) {
+        return NextResponse.json(
+            ApiResponse.missingField("Missing time field"),
+            { status: 400 }
+        );
+    }
+    if (!data.duration) {
+        return NextResponse.json(
+            ApiResponse.missingField("Missing duration field"),
             { status: 400 }
         );
     }
@@ -209,29 +203,24 @@ export async function POST(req: NextRequest) {
             { status: 400 }
         );
     }
-    if (!data.status) {
+    if (!Number.isInteger(data.serviceId) || data.serviceId <= 0) {
         return NextResponse.json(
-            ApiResponse.missingField("Missing status field"),
-            { status: 400 }
-        );
-    }
-    if (!data.dueDate) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing dueDate field"),
+            ApiResponse.invalidParameter("Invalid serviceId parameter"),
             { status: 400 }
         );
     }
     // database
-    const appointment = await prisma.appointment.create({
+    const availability = await prisma.availability.create({
         data: {
-            userId: data.userId,
-            serviceId: data.serviceId,
+            date: data.date,
+            startTime: data.time,
+            endTime: data.time + data.duration,
             status: data.status,
-            dueDate: data.dueDate
+            serviceId: data.serviceId,
         }
     })
     return NextResponse.json(
-        ApiResponse.success("Appointment created successfully", { appointment }),
+        ApiResponse.success("Availability created successfully", { availability }),
         { status: 200 }
     );
 }
