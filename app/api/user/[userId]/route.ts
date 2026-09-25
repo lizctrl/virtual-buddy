@@ -99,6 +99,12 @@ export async function PUT(
             { status: 404 }
         );
     }
+    if (currentUser.email !== user.email) {
+        return NextResponse.json(
+            ApiResponse.unauthorized("User not authorized"),
+            { status: 401 }
+        );
+    }
     const data = await request.json()
     if (!data.name) {
         return NextResponse.json(

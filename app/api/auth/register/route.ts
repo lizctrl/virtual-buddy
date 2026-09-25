@@ -1,14 +1,39 @@
+import { ApiResponse } from "@/app/lib/api/responses"
 import { generateToken, hashPassword } from "@/app/lib/auth"
 import { prisma } from "@/app/lib/db"
-import { stat } from "fs"
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
         const body = await request.json()
-        const { email, password, name } = body
-        if (!email || !password || !name) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+        const { email, password, name, last_name, phone } = body
+        if (email === undefined) {
+            return NextResponse.json(ApiResponse.missingField("Missing email field"), { status: 400 })
+        }
+        if (password === undefined) {
+            return NextResponse.json(ApiResponse.missingField("Missing password field"), { status: 400 })
+        }
+        if (name === undefined) {
+            return NextResponse.json(ApiResponse.missingField("Missing name field"), { status: 400 })
+        }
+        if (last_name === undefined) {
+            return NextResponse.json(ApiResponse.missingField("Missing last_name field"), { status: 400 })
+        }
+        if (phone === undefined) {
+            return NextResponse.json(ApiResponse.missingField("Missing phone field"), { status: 400 })
+        }
+        if (password.length < 8) {
+            return NextResponse.json(ApiResponse.invalidParameter("Password must be at least 8 characters"), { status: 400 })
+        }
+        if (password.length > 100) {
+            return NextResponse.json(ApiResponse.invalidParameter("Password must be at most 100 characters"), { status: 400 })
+        }
+
+        if (!email.includes("@")) {
+            return NextResponse.json(ApiResponse.invalidParameter("Invalid email address"), { status: 400 })
+        }
+        if (email.tri().includes(" ")) {
+            return NextResponse.json(ApiResponse.invalidParameter("Email cannot contain spaces"), { status: 400 })
         }
         // Check if user already exists
         const existingUser = await prisma.user.findUnique({
@@ -25,7 +50,7 @@ export async function POST(request: Request) {
         // Create new user
         const newUser = await prisma.user.create({
             data: {
-                email,
+                email: email.toLowerCase().trim(),
                 name,
                 password: hashedPassword,
                 last_name: body.last_name,
@@ -39,7 +64,7 @@ export async function POST(request: Request) {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: "lax",
-            maxAge: 60 * 60 * 24 * 7
+            maxAge: 60 * 60
         })
         return response
     }
