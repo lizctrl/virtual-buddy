@@ -145,4 +145,16 @@ export class ApiResponse<T = null> {
             data
         );
     }
+
+    static internalServerError<T = null>(
+        message: string,
+        data: T = null as T
+    ) {
+        return new ApiResponse(
+            ApiResponseCode.Error,
+            message,
+            data
+        );
+
+    }
 }
