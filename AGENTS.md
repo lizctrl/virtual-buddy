@@ -22,10 +22,19 @@ npm run build        # production build
 npm run lint         # ESLint (flat config)
 npm run db:generate  # regenerate Prisma client (run after schema changes)
 npm run db:push      # sync schema to database
-npm run db:seed      # run seed (currently empty)
+npm run db:seed      # dev fixtures (see below)
 ```
 
 No test framework is configured.
+
+`db:seed` runs `prisma/seed.ts` through `tsx`. It writes every row with an
+`upsert` on a pinned id in the 9000 block, so it is idempotent and does not
+wipe anything. Sign in with `owner@virtualbuddy.test` / `password123`; there is
+also a `client@` and a `banned@` variant, the latter barred from the studio so
+the 403 booking path is reachable.
+
+Gotcha: the project is CJS (no `"type": "module"` in package.json), so
+`tsx` refuses top-level `await`. The seed wraps its body in `main()`.
 
 ## Database
 

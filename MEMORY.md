@@ -158,13 +158,40 @@
   Prisma migration, which needs `--accept-data-loss` on a non-empty table. Not
   done — this helper is the non-destructive stopgap
 
+## Prisma Seed (added 2026-09-29)
+
+- `prisma/seed.ts` was empty; it now writes dev fixtures
+- Every row is an `upsert` on a pinned id in the **9000 block**, so re-running
+  refreshes instead of duplicating, and nothing outside that block is touched
+  (the dev DB already had users 1-4, business 1 and a moderation from before,
+  so a wipe was not an option)
+- `syncSequences()` pushes each table's sequence past the seeded ids. Without it
+  the app would try to reuse an id from the block. It uses `$executeRawUnsafe`
+  because the table name is an identifier and cannot be parameterised
+- Ids only move forward: rows the app creates after a seed continue upward from
+  9000, so ids stop distinguishing fixtures from real data after the first run
+- Credentials: `owner@virtualbuddy.test`, `client@virtualbuddy.test`,
+  `banned@virtualbuddy.test`, all with `password123`. The banned one is barred
+  from the studio so the 403 booking path is reachable
+- **Gotcha:** `tsx` was missing from devDependencies even though `db:seed` calls
+  it, so `npx` was downloading it on every run. Added
+- **Gotcha:** the project is CJS (no `"type": "module"`), so `tsx` rejects
+  top-level `await` with `ERR_REQUIRE_ASYNC_MODULE`. Same root cause as
+  commitlint needing `.mjs`. The seed wraps everything in `main()`
+- `prisma/seed.ts` is covered by `tsc --noEmit` — tsconfig `include` is
+  `["**/*.ts"]`, so seed code must type-check
+- Passwords hash with `bcryptjs` directly, not `app/lib/auth.ts`: that module
+  imports `next/headers` and throws without `JWT_SECRET`, neither of which
+  belongs in a standalone script
+
 ## Test Data Pollution (2026-09-29)
 
-- End-to-end verification wrote real rows into the dev database: user 5,
-  business 2, catalog 2, service 2, appointments 2-7, availability 2,
-  workingHours 2, plus notifications. Appointments 3 and 4 were flipped to
-  confirmed/rejected to exercise the PUT path
-- `prisma/seed.ts` is empty, so there is no fixture to reset to
+- End-to-end verification left manual rows in the dev database alongside the
+  seed: user 5, business 2, catalog 2, service 2, appointments 2-7,
+  availability 2, workingHours 2, plus notifications
+- Those predate the seed and are still there. The seed's 9000 block does not
+  cover them; a wipe would remove them along with the older users 1-4
+
 
 
 
