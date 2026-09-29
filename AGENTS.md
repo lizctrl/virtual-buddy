@@ -45,13 +45,34 @@ No test framework is configured.
 - `app/api/health` is intentionally unversioned (infrastructure-level)
 - Use the `ApiResponse` class and `ApiResponseCode` enum from `app/lib/api/responses.ts` for consistent responses
 - Helpers in `app/lib/api/`: `parsePagination`, `sorting`, `ranges`, `boolean`
+- **Never call `fetch` directly from a component.** Use `app/lib/api/client.ts`
+  (`apiGet`/`apiPost`/`apiPut`/...). It unwraps the `ApiResponse` envelope and
+  the two bare routes (`/auth/me`, `/auth/register`) into one shape, and returns
+  a `ApiResult<T>` discriminated union. Branch on `.ok` and surface `.message` —
+  collapsing failures to an empty list is what hid the envelope bug for weeks
 - Path alias: `@/*` maps to project root (`./*`)
+- `ownerId` on `appointment` and `notification` means the **owner user id**,
+  not a business id. `business?ownerId=` takes the user id too
+- `startTime`/`endTime` are `DateTime` columns but the API exchanges them as
+  `"HH:mm"` strings. Go through `app/lib/api/times.ts` rather than
+  `new Date(...)` — the raw ISO string used to leak straight into the UI
+- **Always `await` the helpers in `app/lib/auth.ts`.** They are `async`, and a
+  forgotten `await` leaves a truthy Promise in a boolean context — that bug once
+  made login accept any password, and neither the type checker nor the linter
+  caught it
 
 ## Conventions
 
 - Tailwind CSS v4 via `@tailwindcss/postcss` — no `tailwind.config.js`
 - ESLint flat config (`eslint.config.mjs`) with custom `globalIgnores` overriding eslint-config-next defaults
 - `app/layout.tsx` uses `LayoutProps<">"` — a Next.js 16 typed-routes feature
+- Table kit lives in `app/components/table/`: `Datatable.tsx` (generic, presentational)
+  pairs with `Pagination.tsx` (dumb, driven by props)
+- `Datatable` sorting is **controlled** — it never reorders `rows`, it only emits
+  `onSortChange` so the page can refetch. Selection is **uncontrolled** (internal
+  `Set`, pruned to visible rows on change)
+- React Compiler lint rules are on: no `setState` inside `useEffect`. Adjust state
+  during render when syncing to changed props instead
 
 ## Commits
 
