@@ -107,7 +107,6 @@ export async function PUT(
         },
         select: {
             id: true,
-            createTime: true,
             weekDay: true,
             startTime: true,
             endTime: true,
@@ -169,7 +168,6 @@ async function getWorkingHours(workingHoursId: number, service: boolean = false)
         },
         select: {
             id: true,
-            createTime: true,
             weekDay: true,
             startTime: true,
             endTime: true,
@@ -180,8 +178,7 @@ async function getWorkingHours(workingHoursId: number, service: boolean = false)
                     id: true,
                     name: true,
                     catalogId: true,
-                    state: true,
-                    services: true
+                    state: true
                 }
             } : false
 

@@ -110,8 +110,7 @@ export async function PUT(
             createTime: true,
             title: true,
             content: true,
-            appointmentId: true,
-            state: true
+            appointmentId: true
         }
     })
     return NextResponse.json(
@@ -172,7 +171,6 @@ async function getNotification(notificationId: number, appointment: boolean = fa
             title: true,
             content: true,
             appointmentId: true,
-            state: true,
             appointment: appointment ? {
                 select: {
                     id: true,

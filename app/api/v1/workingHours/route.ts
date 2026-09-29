@@ -1,4 +1,4 @@
-/// api/moderation?user=true&page=1&limit=10&sortBy=&sortOrder=&status=&idFrom=&idTo=&excludedIds=&state=true&createTimeFrom=&createTimeTo=&sortBy=&sortOrder=
+/// api/working_hours?page=1&limit=10&sortBy=&sortOrder=&serviceId=&idFrom=&idTo=&excludedIds=&state=true&createTimeFrom=&createTimeTo=&excludedCreateTime=
 
 import { parseBoolean } from "@/app/lib/api/boolean";
 import { parsePagination } from "@/app/lib/api/pagination";
@@ -11,13 +11,6 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-        return NextResponse.json(
-            ApiResponse.unauthenticated("User not authenticated"),
-            { status: 401 }
-        );
-    }
     const { searchParams } = req.nextUrl;
 
     // Pagination
@@ -30,24 +23,6 @@ export async function GET(req: NextRequest) {
     }
 
     // Filters
-    const userResult = parseBoolean(searchParams, "user");
-    if (!userResult.success) {
-        return NextResponse.json(
-            ApiResponse.invalidParameter(userResult.error),
-            { status: 400 }
-        );
-    }
-
-    // booleans
-    const stateResult = parseBoolean(searchParams, "state");
-    if (!stateResult.success) {
-        return NextResponse.json(
-            ApiResponse.invalidParameter(stateResult.error),
-            { status: 400 }
-        );
-    }
-
-    // Ranges
     const idResult = parseRanges(searchParams);
     if (!idResult.success) {
         return NextResponse.json(
@@ -65,7 +40,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Sorting
-    const allowedSortFields = ["id", "createTime", "userId", "status", "state"] as const;
+    const allowedSortFields = ["id", "createTime", "serviceId", "state"] as const;
     const sortingResult = parseSorting(searchParams, allowedSortFields);
     if (!sortingResult.success) {
         return NextResponse.json(
@@ -77,16 +52,14 @@ export async function GET(req: NextRequest) {
     const { sortBy, sortOrder } = sortingResult;
 
     const { from: idFrom, to: idTo, excluded: excludedIds } = idResult;
-    const { from: createTimeFrom, to: createTimeTo, excluded: excludedCreateTimes } = dateResult;
 
-    const state = stateResult.value ?? false;
-    const user = userResult.value ?? false;
+
 
     const { page, limit, skip } = paginationResult;
 
 
     // Dynamic WHERE
-    const where: Prisma.ModerationWhereInput = {};
+    const where: Prisma.WorkingHoursWhereInput = {};
 
 
     if (idFrom !== null || idTo !== null || excludedIds.length > 0) {
@@ -96,71 +69,46 @@ export async function GET(req: NextRequest) {
             ...(excludedIds.length > 0 && { notIn: excludedIds })
         };
     }
-    if (createTimeFrom !== null || createTimeTo !== null || excludedCreateTimes.length > 0) {
-        where.createTime = {
-            ...(createTimeFrom !== null && { gte: createTimeFrom }),
-            ...(createTimeTo !== null && { lte: createTimeTo }),
-            ...(excludedCreateTimes.length > 0 && { notIn: excludedCreateTimes })
-        };
-    }
 
-    if (state !== null) {
-        where.state = state;
-    }
 
-    const [moderations, count] = await Promise.all([
-        prisma.moderation.findMany({
+    const [workingHours, count] = await Promise.all([
+        prisma.workingHours.findMany({
             where,
             take: limit,
             skip,
             select: {
                 id: true,
-                createTime: true,
-                userId: true,
-                status: true,
+                weekDay: true,
+                startTime: true,
+                endTime: true,
+                serviceId: true,
                 state: true,
-                user: user ? {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        last_name: true,
-                        state: true,
-                        phone: true,
-                        password: true,
-                        businesses: true,
-                        appointments: true,
-                        moderations: true,
-                        profiles: true
-                    }
-                } : false
+                service: true
             },
             orderBy: [{ [sortBy]: sortOrder }]
         }),
-        prisma.moderation.count({
+        prisma.workingHours.count({
             where
         })
     ]);
 
     const totalPages = Math.ceil(count / limit);
-    return NextResponse.json(ApiResponse.success("Moderations retrieved successfully",
+    return NextResponse.json(ApiResponse.success("Working hours retrieved successfully",
         {
-            moderations,
+            workingHours,
             pagination: {
                 page,
                 limit,
                 totalPages,
                 totalItems: count,
-                itemsOnPage: moderations.length,
+                itemsOnPage: workingHours.length,
                 hasPreviousPage: page > 1,
                 hasNextPage: page < totalPages
             },
             filters: {
                 idFrom,
                 idTo,
-                excludedIds,
-                state,
-                user
+                excludedIds
             },
             sort: {
                 by: sortBy,
@@ -179,27 +127,55 @@ export async function POST(req: NextRequest) {
         );
     }
     const data = await req.json()
-    if (!data.userId) {
+    if (!data.weekDay) {
         return NextResponse.json(
-            ApiResponse.missingField("Missing userId field"),
+            ApiResponse.missingField("Missing weekDay field"),
             { status: 400 }
         );
     }
-    if (!data.status) {
+    if (!data.startTime) {
         return NextResponse.json(
-            ApiResponse.missingField("Missing status field"),
+            ApiResponse.missingField("Missing startTime field"),
+            { status: 400 }
+        );
+    }
+    if (!data.endTime) {
+        return NextResponse.json(
+            ApiResponse.missingField("Missing endTime field"),
+            { status: 400 }
+        );
+    }
+    if (!data.serviceId) {
+        return NextResponse.json(
+            ApiResponse.missingField("Missing serviceId field"),
+            { status: 400 }
+        );
+    }
+    if (!Number.isInteger(data.serviceId) || data.serviceId <= 0) {
+        return NextResponse.json(
+            ApiResponse.invalidParameter("Invalid serviceId parameter"),
+            { status: 400 }
+        );
+    }
+    const startTime = new Date(data.startTime);
+    const endTime = new Date(data.endTime);
+    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+        return NextResponse.json(
+            ApiResponse.invalidParameter("Invalid startTime or endTime"),
             { status: 400 }
         );
     }
     // database
-    const moderation = await prisma.moderation.create({
+    const workingHours = await prisma.workingHours.create({
         data: {
-            userId: data.userId,
-            status: data.status
+            weekDay: data.weekDay,
+            startTime,
+            endTime,
+            serviceId: data.serviceId,
         }
     })
     return NextResponse.json(
-        ApiResponse.success("Moderation created successfully", { moderation }),
+        ApiResponse.success("Working hours created successfully", { workingHours }),
         { status: 200 }
     );
-}   
+}

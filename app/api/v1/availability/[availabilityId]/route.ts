@@ -122,9 +122,6 @@ export async function PUT(
         },
         select: {
             id: true,
-            createdAt: true,
-            updatedAt: true,
-            userId: true,
             serviceId: true,
             status: true,
             date: true,
@@ -181,9 +178,6 @@ export async function DELETE(
         },
         select: {
             id: true,
-            createdAt: true,
-            updatedAt: true,
-            userId: true,
             serviceId: true,
             status: true,
             date: true,
@@ -205,9 +199,6 @@ async function getAvailability(availabilityId: number) {
         },
         select: {
             id: true,
-            createdAt: true,
-            updatedAt: true,
-            userId: true,
             serviceId: true,
             status: true,
             date: true,

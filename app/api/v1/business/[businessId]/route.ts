@@ -4,8 +4,8 @@ import { getCurrentUser } from "@/app/lib/auth"
 import { prisma } from "@/app/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 // /api/business/[businessId]
-export async function GET(request: NextRequest, context: { params: { businessId: string } }) {
-    const { businessId } = context.params
+export async function GET(request: NextRequest, { params }: { params: Promise<{ businessId: string }> }) {
+    const { businessId } = await params
     if (!businessId) {
         return NextResponse.json(
             ApiResponse.missingParameter("Missing businessId parameter"),
@@ -29,12 +29,6 @@ export async function GET(request: NextRequest, context: { params: { businessId:
             { status: 404 }
         );
     }
-    if (!business || business.owner?.email !== user.email) {
-        return Response.json(
-            ApiResponse.unauthorized("User not authorized to access this business"),
-            { status: 401 }
-        );
-    }
 
     return NextResponse.json(
         ApiResponse.success("Business retrieved successfully", { business }),
@@ -53,9 +47,8 @@ async function getBusiness(businessId: string, catalog = false, inventory = fals
             name: true,
             description: true,
             owner: true,
-            Catalog: catalog,
-            Inventory: inventory,
-            Owner: true
+            catalogs: catalog,
+            inventories: inventory
         }
     })
     return business

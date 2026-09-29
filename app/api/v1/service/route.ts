@@ -1,4 +1,4 @@
-// api/business? page=1&limit=10&description=&name=&ownerId=&idFrom=&idTo=&excludedId=&sortBy=&sortOrder=&state=true&catalog=true&inventory=true&owner=true
+// api/service? page=1&limit=10&name=&description=&idFrom=&idTo=&excludedId=&sortBy=&sortOrder=&state=true&catalog=true&availability=true&workingHours=true&appointments=true
 
 import { parseBoolean } from "@/app/lib/api/boolean";
 import { parsePagination } from "@/app/lib/api/pagination";
@@ -11,13 +11,6 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-        return NextResponse.json(
-            ApiResponse.unauthenticated("User not authenticated"),
-            { status: 401 }
-        );
-    }
     const { searchParams } = req.nextUrl;
 
     // Pagination
@@ -32,18 +25,8 @@ export async function GET(req: NextRequest) {
     // Filters
     const name = searchParams.get("name")?.trim() || null;
     const description = searchParams.get("description")?.trim() || null;
-    const ownerIdParam = searchParams.get("ownerId")?.trim();
-    const ownerId = ownerIdParam ? Number(ownerIdParam) : null;
-    if (ownerId !== null) {
-        if (!Number.isInteger(ownerId) || ownerId < 1) {
-            return NextResponse.json(
-                ApiResponse.invalidParameter("ownerId must be a positive integer"),
-                { status: 400 }
-            );
-        }
 
-    }
-
+    //booleans
     const stateResult = parseBoolean(searchParams, "state");
     if (!stateResult.success) {
         return NextResponse.json(
@@ -59,22 +42,30 @@ export async function GET(req: NextRequest) {
             { status: 400 }
         );
     }
-    const inventoryResult = parseBoolean(searchParams, "inventory");
-    if (!inventoryResult.success) {
+    const availabilityResult = parseBoolean(searchParams, "availability");
+    if (!availabilityResult.success) {
         return NextResponse.json(
-            ApiResponse.invalidParameter(inventoryResult.error),
+            ApiResponse.invalidParameter(availabilityResult.error),
             { status: 400 }
         );
     }
-    const ownerResult = parseBoolean(searchParams, "owner");
-    if (!ownerResult.success) {
+    const workingHoursResult = parseBoolean(searchParams, "workingHours");
+    if (!workingHoursResult.success) {
         return NextResponse.json(
-            ApiResponse.invalidParameter(ownerResult.error),
+            ApiResponse.invalidParameter(workingHoursResult.error),
             { status: 400 }
         );
     }
+    const appointmentsResult = parseBoolean(searchParams, "appointments");
+    if (!appointmentsResult.success) {
+        return NextResponse.json(
+            ApiResponse.invalidParameter(appointmentsResult.error),
+            { status: 400 }
+        );
+    }
+
     // Ranges
-    const rangesResult = parseRanges(searchParams,);
+    const rangesResult = parseRanges(searchParams);
     if (!rangesResult.success) {
         return NextResponse.json(
             ApiResponse.invalidRange(rangesResult.error),
@@ -83,7 +74,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Sorting
-    const allowedSortFields = ["id", "name", "description", "ownerId"] as const;
+    const allowedSortFields = ["id", "name", "description"] as const;
     const sortingResult = parseSorting(searchParams, allowedSortFields);
     if (!sortingResult.success) {
         return NextResponse.json(
@@ -98,31 +89,21 @@ export async function GET(req: NextRequest) {
     const { from: idFrom, to: idTo, excluded: excludedIds } = rangesResult;
 
     const state = stateResult.value ?? false;
-    const catalogs = catalogResult.value ?? false;
-    const inventories = inventoryResult.value ?? false;
-    const owner = ownerResult.value ?? false;
+    const catalog = catalogResult.value ?? false;
+    const availability = availabilityResult.value ?? false;
+    const workingHours = workingHoursResult.value ?? false;
+    const appointments = appointmentsResult.value ?? false;
 
     const { page, limit, skip } = paginationResult;
 
 
     // Dynamic WHERE
-    const where: Prisma.BusinessWhereInput = {};
+    const where: Prisma.ServiceWhereInput = {};
 
     if (name) {
         where.name = {
             contains: name,
             mode: "insensitive"
-        };
-    }
-    if (description) {
-        where.description = {
-            contains: description,
-            mode: "insensitive"
-        };
-    }
-    if (ownerId !== null) {
-        where.ownerId = {
-            equals: ownerId
         };
     }
 
@@ -138,54 +119,43 @@ export async function GET(req: NextRequest) {
         where.state = state;
     }
 
-    const [businesses, count] = await Promise.all([
-        prisma.business.findMany({
+    const [catalogs, count] = await Promise.all([
+        prisma.service.findMany({
             where,
             take: limit,
             skip,
             select: {
                 id: true,
                 name: true,
-                description: true,
-                ownerId: true,
-                catalogs,
-                inventories,
-                owner: owner ? {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        last_name: true,
-                        phone: true,
-                        state: true
-                    }
-                } : false,
+                catalogId: true,
                 state: true,
+                appointments,
+                availability,
+                workingHours,
+                catalog
             },
             orderBy: [{ [sortBy]: sortOrder }]
         }),
-        prisma.business.count({
+        prisma.service.count({
             where
-
         })
-    ])
+    ]);
 
     const totalPages = Math.ceil(count / limit);
-    return NextResponse.json(ApiResponse.success("Businesses retrieved successfully", {
-        businesses,
+    return NextResponse.json(ApiResponse.success("Catalogs retrieved successfully", {
+        catalogs,
         pagination: {
             page,
             limit,
             totalPages,
             totalItems: count,
-            itemsOnPage: businesses.length,
+            itemsOnPage: catalogs.length,
             hasPreviousPage: page > 1,
             hasNextPage: page < totalPages
         },
         filters: {
             name,
             description,
-            ownerId,
             idFrom,
             idTo,
             excludedIds,
@@ -212,34 +182,27 @@ export async function POST(req: NextRequest) {
             { status: 400 }
         );
     }
-    if (!data.description) {
+    if (!data.catalogId) {
         return NextResponse.json(
-            ApiResponse.missingField("Missing description field"),
+            ApiResponse.missingField("Missing catalogId field"),
             { status: 400 }
         );
     }
-    if (!data.ownerId) {
+    if (!Number.isInteger(data.catalogId) || data.catalogId <= 0) {
         return NextResponse.json(
-            ApiResponse.missingField("Missing ownerId field"),
-            { status: 400 }
-        );
-    }
-    if (!Number.isInteger(data.ownerId) || data.ownerId <= 0) {
-        return NextResponse.json(
-            ApiResponse.invalidParameter("Invalid ownerId parameter"),
+            ApiResponse.invalidParameter("Invalid catalogId parameter"),
             { status: 400 }
         );
     }
     // database
-    const business = await prisma.business.create({
+    const service = await prisma.service.create({
         data: {
             name: data.name,
-            description: data.description,
-            ownerId: data.ownerId,
+            catalogId: data.catalogId,
         }
     })
     return NextResponse.json(
-        ApiResponse.success("Business created successfully", { business }),
+        ApiResponse.success("Service created successfully", { service }),
         { status: 200 }
     );
-}   
+}

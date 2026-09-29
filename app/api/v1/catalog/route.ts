@@ -11,13 +11,6 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-        return NextResponse.json(
-            ApiResponse.unauthenticated("User not authenticated"),
-            { status: 401 }
-        );
-    }
     const { searchParams } = req.nextUrl;
 
     // Pagination

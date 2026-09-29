@@ -94,7 +94,6 @@ async function getService(
         select: {
             id: true,
             name: true,
-            description: true,
             catalogId: true,
             state: true,
             appointments,

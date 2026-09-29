@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         if (!email.includes("@")) {
             return NextResponse.json(ApiResponse.invalidParameter("Invalid email address"), { status: 400 })
         }
-        if (email.tri().includes(" ")) {
+        if (email.trim().includes(" ")) {
             return NextResponse.json(ApiResponse.invalidParameter("Email cannot contain spaces"), { status: 400 })
         }
         // Check if user already exists

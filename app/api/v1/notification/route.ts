@@ -40,6 +40,24 @@ export async function GET(req: NextRequest) {
 
     const appointment = appointmentResult.value ?? false;
 
+    const userIdParam = searchParams.get("userId")?.trim() || null;
+    const userId = userIdParam ? Number(userIdParam) : null;
+    if (userId !== null && (!Number.isInteger(userId) || userId <= 0)) {
+        return NextResponse.json(
+            ApiResponse.invalidParameter("Invalid userId parameter"),
+            { status: 400 }
+        );
+    }
+
+    const ownerIdParam = searchParams.get("ownerId")?.trim() || null;
+    const ownerId = ownerIdParam ? Number(ownerIdParam) : null;
+    if (ownerId !== null && (!Number.isInteger(ownerId) || ownerId <= 0)) {
+        return NextResponse.json(
+            ApiResponse.invalidParameter("Invalid ownerId parameter"),
+            { status: 400 }
+        );
+    }
+
     const idResult = parseRanges(searchParams);
     if (!idResult.success) {
         return NextResponse.json(
@@ -94,6 +112,15 @@ export async function GET(req: NextRequest) {
         };
     }
 
+    if (userId !== null || ownerId !== null) {
+        where.appointment = {
+            ...(userId !== null && { userId }),
+            ...(ownerId !== null && {
+                service: { catalog: { business: { ownerId } } }
+            })
+        };
+    }
+
     const [notifications, count] = await Promise.all([
         prisma.notification.findMany({
             where,
@@ -105,7 +132,6 @@ export async function GET(req: NextRequest) {
                 title: true,
                 content: true,
                 appointmentId: true,
-                state: true,
                 appointment: appointment ? {
                     select: {
                         id: true,
