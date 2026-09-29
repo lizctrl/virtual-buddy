@@ -34,17 +34,21 @@ export async function GET(req: NextRequest) {
     const serviceIdParam = searchParams.get("serviceId")?.trim() || null;
     const status = searchParams.get("status")?.trim() || null;
 
-    const userId = Number(userIdParam);
+    const userId = userIdParam !== null ? Number(userIdParam) : null;
 
-    if (!Number.isInteger(userId) || userId <= 0) {
+    if (userId !== null && (!Number.isInteger(userId) || userId <= 0)) {
         return NextResponse.json(
             ApiResponse.invalidParameter("Invalid userId parameter"),
             { status: 400 }
         );
     }
-    const serviceId = Number(serviceIdParam);
+    const serviceId =
+        serviceIdParam !== null ? Number(serviceIdParam) : null;
 
-    if (!Number.isInteger(serviceId) || serviceId <= 0) {
+    if (
+        serviceId !== null &&
+        (!Number.isInteger(serviceId) || serviceId <= 0)
+    ) {
         return NextResponse.json(
             ApiResponse.invalidParameter("Invalid serviceId parameter"),
             { status: 400 }
