@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import AppLayout from "@/app/components/layout/AppLayout";
 import Badge from "@/app/components/ui/Badge";
+import { apiGet } from "@/app/lib/api/client";
 import { User } from "@/app/types/types";
 
 interface Appointment {
@@ -17,27 +18,31 @@ interface Appointment {
     service: { id: number; name: string; catalogId: number };
 }
 
-async function apiGet<T>(url: string): Promise<T | null> {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return res.json();
-}
-
 export default function MyAppointmentsPage() {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        apiGet<User>("/api/v1/auth/me").then(me => {
-            if (me) {
+        apiGet<User>("/api/v1/auth/me")
+            .then(me => {
+                if (!me.ok) {
+                    setError(me.message);
+                    return null;
+                }
                 return apiGet<{ appointments: Appointment[] }>(
-                    `/api/v1/appointment?userId=${me.id}&state=true&limit=100`
+                    `/api/v1/appointment?userId=${me.data.id}&state=true&limit=100`
                 );
-            }
-            return null;
-        }).then(d => {
-            setAppointments(d?.appointments ?? []);
-        }).finally(() => setLoading(false));
+            })
+            .then(result => {
+                if (!result) return;
+                if (!result.ok) {
+                    setError(result.message);
+                    return;
+                }
+                setAppointments(result.data.appointments);
+            })
+            .finally(() => setLoading(false));
     }, []);
 
     const statusVariant = (s: string) =>
@@ -60,6 +65,10 @@ export default function MyAppointmentsPage() {
             <h1 className="mb-6 text-2xl font-bold text-gray-900">
                 My appointments
             </h1>
+
+            {error && (
+                <p className="mb-4 text-sm text-red-600">{error}</p>
+            )}
 
             <div className="rounded-xl border border-gray-200 bg-white p-6">
                 <ul className="space-y-3">

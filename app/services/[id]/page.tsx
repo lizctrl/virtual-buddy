@@ -8,6 +8,7 @@ import AppLayout from "@/app/components/layout/AppLayout";
 import Input from "@/app/components/ui/Input";
 import Button from "@/app/components/ui/Button";
 import Badge from "@/app/components/ui/Badge";
+import { apiGet, apiPost } from "@/app/lib/api/client";
 
 interface Service {
     id: number;
@@ -34,12 +35,6 @@ interface WorkingHours {
     state: boolean;
 }
 
-async function apiGet<T>(url: string): Promise<T | null> {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return res.json();
-}
-
 export default function ServiceDetailPage() {
     const params = useParams<{ id: string }>();
     const id = Number(params.id);
@@ -51,6 +46,7 @@ export default function ServiceDetailPage() {
 
     const [date, setDate] = useState("");
     const [time, setTime] = useState("");
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
@@ -66,9 +62,21 @@ export default function ServiceDetailPage() {
                 `/api/v1/workingHours?serviceId=${id}&state=true&limit=100`
             )
         ]).then(([s, a, w]) => {
-            setService(s?.service ?? null);
-            setSlots(a?.availabilities ?? []);
-            setHours(w?.workingHours ?? []);
+            if (!s.ok) {
+                setLoadError(s.message);
+                return;
+            }
+            if (!a.ok) {
+                setLoadError(a.message);
+                return;
+            }
+            if (!w.ok) {
+                setLoadError(w.message);
+                return;
+            }
+            setService(s.data.service);
+            setSlots(a.data.availabilities);
+            setHours(w.data.workingHours);
         }).finally(() => setLoading(false));
     }, [id]);
 
@@ -78,19 +86,14 @@ export default function ServiceDetailPage() {
         setSuccess(null);
         setSubmitting(true);
 
-        const res = await fetch("/api/v1/appointment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                serviceId: id,
-                dueDate: new Date(`${date}T${time}`).toISOString()
-            })
+        const r = await apiPost("/api/v1/appointment", {
+            serviceId: id,
+            dueDate: new Date(`${date}T${time}`).toISOString()
         });
-        const data = await res.json().catch(() => ({}));
         setSubmitting(false);
 
-        if (!res.ok) {
-            setError(data.message ?? "Could not book appointment");
+        if (!r.ok) {
+            setError(r.message || "Could not book appointment");
             return;
         }
         setSuccess("Appointment booked! The business will confirm it soon.");
@@ -109,7 +112,9 @@ export default function ServiceDetailPage() {
     if (!service) {
         return (
             <AppLayout>
-                <p className="text-gray-500">Service not found.</p>
+                <p className={loadError ? "text-red-600" : "text-gray-500"}>
+                    {loadError ?? "Service not found."}
+                </p>
             </AppLayout>
         );
     }

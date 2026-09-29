@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+import { apiGet, apiPost } from "@/app/lib/api/client";
 import { User } from "@/app/types/types";
 
 const navItems = [
@@ -26,15 +27,13 @@ export default function AppLayout({
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch("/api/v1/auth/me")
-            .then(res => (res.ok ? res.json() : null))
-            .then(data => setUser(data))
-            .catch(() => setUser(null))
+        apiGet<User>("/api/v1/auth/me")
+            .then(result => setUser(result.ok ? result.data : null))
             .finally(() => setLoading(false));
     }, []);
 
     async function handleLogout() {
-        await fetch("/api/v1/auth/logout", { method: "POST" });
+        await apiPost("/api/v1/auth/logout");
         router.push("/login");
         router.refresh();
     }

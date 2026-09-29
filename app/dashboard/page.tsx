@@ -8,6 +8,7 @@ import Input from "@/app/components/ui/Input";
 import Button from "@/app/components/ui/Button";
 import Badge from "@/app/components/ui/Badge";
 import Select from "@/app/components/ui/Select";
+import { apiGet, apiPost, apiPut } from "@/app/lib/api/client";
 import { User } from "@/app/types/types";
 
 interface Business {
@@ -90,25 +91,6 @@ const weekDays = [
     "Sunday"
 ];
 
-async function apiGet<T>(url: string): Promise<T | null> {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return res.json();
-}
-
-async function apiPost(
-    url: string,
-    body: unknown
-): Promise<{ ok: boolean; message?: string }> {
-    const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-    });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, message: data.message };
-}
-
 export default function DashboardPage() {
     const [user, setUser] = useState<User | null>(null);
     const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -117,6 +99,7 @@ export default function DashboardPage() {
     );
     const [tab, setTab] = useState<Tab>("overview");
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [reloadCount, setReloadCount] = useState(0);
 
     useEffect(() => {
@@ -124,19 +107,26 @@ export default function DashboardPage() {
         apiGet<User>("/api/v1/auth/me")
             .then(me => {
                 if (!active) return;
-                setUser(me);
-                if (me) {
-                    return apiGet<{ businesses: Business[] }>(
-                        `/api/v1/business?ownerId=${me.id}&state=true&limit=100`
-                    ).then(data => {
-                        if (!active) return;
-                        const list = data?.businesses ?? [];
-                        setBusinesses(list);
-                        setSelectedBusiness(
-                            prev => prev ?? list[0]?.id ?? null
-                        );
-                    });
+                if (!me.ok) {
+                    setError(me.message);
+                    setUser(null);
+                    return null;
                 }
+                setUser(me.data);
+                return apiGet<{ businesses: Business[] }>(
+                    `/api/v1/business?ownerId=${me.data.id}&state=true&limit=100`
+                ).then(result => {
+                    if (!active) return;
+                    if (!result.ok) {
+                        setError(result.message);
+                        return;
+                    }
+                    const list = result.data.businesses;
+                    setBusinesses(list);
+                    setSelectedBusiness(
+                        prev => prev ?? list[0]?.id ?? null
+                    );
+                });
             })
             .finally(() => {
                 if (active) setLoading(false);
@@ -167,6 +157,12 @@ export default function DashboardPage() {
     if (businesses.length === 0) {
         return (
             <AppLayout>
+                {error && (
+                    <p className="mb-4 text-sm text-red-600">
+                        {error}
+                    </p>
+                )}
+
                 <BusinessOnboarding
                     userId={user.id}
                     onCreated={() => setReloadCount(c => c + 1)}
@@ -204,6 +200,10 @@ export default function DashboardPage() {
                     />
                 )}
             </div>
+
+            {error && (
+                <p className="mb-4 text-sm text-red-600">{error}</p>
+            )}
 
             <div className="mb-6 flex gap-2 border-b border-gray-200">
                 {tabs.map(t => (
@@ -266,7 +266,7 @@ function BusinessOnboarding({
         });
         setLoading(false);
         if (!result.ok) {
-            setError(result.message ?? "Could not create business");
+            setError(result.message || "Could not create business");
             return;
         }
         onCreated();
@@ -328,14 +328,27 @@ function BusinessOnboarding({
 function Overview({ businessId }: { businessId: number }) {
     const [catalogs, setCatalogs] = useState<Catalog[]>([]);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         apiGet<{ catalogs: Catalog[] }>(
             `/api/v1/catalog?businessId=${businessId}&state=true&service=true&limit=100`
-        ).then(d => setCatalogs(d?.catalogs ?? []));
+        ).then(result => {
+            if (!result.ok) {
+                setError(result.message);
+                return;
+            }
+            setCatalogs(result.data.catalogs);
+        });
         apiGet<{ appointments: Appointment[] }>(
             `/api/v1/appointment?ownerId=${businessId}&state=true&limit=100`
-        ).then(d => setAppointments(d?.appointments ?? []));
+        ).then(result => {
+            if (!result.ok) {
+                setError(result.message);
+                return;
+            }
+            setAppointments(result.data.appointments);
+        });
     }, [businessId]);
 
     const totalServices = catalogs.reduce(
@@ -352,18 +365,24 @@ function Overview({ businessId }: { businessId: number }) {
     ];
 
     return (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map(s => (
-                <div
-                    key={s.label}
-                    className="rounded-xl border border-gray-200 bg-white p-6"
-                >
-                    <p className="text-sm text-gray-500">{s.label}</p>
-                    <p className="mt-1 text-3xl font-bold text-gray-900">
-                        {s.value}
-                    </p>
-                </div>
-            ))}
+        <div className="space-y-4">
+            {error && (
+                <p className="text-sm text-red-600">{error}</p>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {stats.map(s => (
+                    <div
+                        key={s.label}
+                        className="rounded-xl border border-gray-200 bg-white p-6"
+                    >
+                        <p className="text-sm text-gray-500">{s.label}</p>
+                        <p className="mt-1 text-3xl font-bold text-gray-900">
+                            {s.value}
+                        </p>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -378,7 +397,13 @@ function CatalogsServices({ businessId }: { businessId: number }) {
     const load = useCallback(() => {
         apiGet<{ catalogs: Catalog[] }>(
             `/api/v1/catalog?businessId=${businessId}&state=true&service=true&limit=100`
-        ).then(d => setCatalogs(d?.catalogs ?? []));
+        ).then(result => {
+            if (!result.ok) {
+                setError(result.message);
+                return;
+            }
+            setCatalogs(result.data.catalogs);
+        });
     }, [businessId]);
 
     useEffect(() => {
@@ -393,7 +418,7 @@ function CatalogsServices({ businessId }: { businessId: number }) {
             businessId
         });
         if (!r.ok) {
-            setError(r.message ?? "Could not create catalog");
+            setError(r.message || "Could not create catalog");
             return;
         }
         setCatalogName("");
@@ -412,7 +437,7 @@ function CatalogsServices({ businessId }: { businessId: number }) {
             catalogId: selectedCatalog
         });
         if (!r.ok) {
-            setError(r.message ?? "Could not create service");
+            setError(r.message || "Could not create service");
             return;
         }
         setServiceName("");
@@ -523,22 +548,48 @@ function Availability({ businessId }: { businessId: number }) {
     const load = useCallback(() => {
         apiGet<{ catalogs: Catalog[] }>(
             `/api/v1/catalog?businessId=${businessId}&state=true&service=true&limit=100`
-        ).then(d => setCatalogs(d?.catalogs ?? []));
+        ).then(result => {
+            if (!result.ok) {
+                setError(result.message);
+                return;
+            }
+            setCatalogs(result.data.catalogs);
+        });
     }, [businessId]);
 
     useEffect(() => {
         load();
     }, [load]);
 
+    const loadSlots = useCallback((serviceId: number) => {
+        apiGet<{ availabilities: Availability[] }>(
+            `/api/v1/availability?serviceId=${serviceId}&state=true&limit=100`
+        ).then(result => {
+            if (!result.ok) {
+                setError(result.message);
+                return;
+            }
+            setSlots(result.data.availabilities);
+        });
+    }, []);
+
+    const loadHours = useCallback((serviceId: number) => {
+        apiGet<{ workingHours: WorkingHours[] }>(
+            `/api/v1/workingHours?serviceId=${serviceId}&state=true&limit=100`
+        ).then(result => {
+            if (!result.ok) {
+                setError(result.message);
+                return;
+            }
+            setHours(result.data.workingHours);
+        });
+    }, []);
+
     useEffect(() => {
         if (!selectedService) return;
-        apiGet<{ availabilities: Availability[] }>(
-            `/api/v1/availability?serviceId=${selectedService}&state=true&limit=100`
-        ).then(d => setSlots(d?.availabilities ?? []));
-        apiGet<{ workingHours: WorkingHours[] }>(
-            `/api/v1/workingHours?serviceId=${selectedService}&state=true&limit=100`
-        ).then(d => setHours(d?.workingHours ?? []));
-    }, [selectedService]);
+        loadSlots(selectedService);
+        loadHours(selectedService);
+    }, [selectedService, loadSlots, loadHours]);
 
     async function addSlot(e: React.FormEvent) {
         e.preventDefault();
@@ -554,15 +605,13 @@ function Availability({ businessId }: { businessId: number }) {
             serviceId: selectedService
         });
         if (!r.ok) {
-            setError(r.message ?? "Could not add availability");
+            setError(r.message || "Could not add availability");
             return;
         }
         setDate("");
         setStartTime("");
         setEndTime("");
-        apiGet<{ availabilities: Availability[] }>(
-            `/api/v1/availability?serviceId=${selectedService}&state=true&limit=100`
-        ).then(d => setSlots(d?.availabilities ?? []));
+        loadSlots(selectedService);
     }
 
     async function addHours(e: React.FormEvent) {
@@ -579,14 +628,12 @@ function Availability({ businessId }: { businessId: number }) {
             serviceId: selectedService
         });
         if (!r.ok) {
-            setError(r.message ?? "Could not add working hours");
+            setError(r.message || "Could not add working hours");
             return;
         }
         setWhStart("");
         setWhEnd("");
-        apiGet<{ workingHours: WorkingHours[] }>(
-            `/api/v1/workingHours?serviceId=${selectedService}&state=true&limit=100`
-        ).then(d => setHours(d?.workingHours ?? []));
+        loadHours(selectedService);
     }
 
     return (
@@ -749,7 +796,13 @@ function Appointments({ businessId }: { businessId: number }) {
     const load = useCallback(() => {
         apiGet<{ appointments: Appointment[] }>(
             `/api/v1/appointment?ownerId=${businessId}&state=true&limit=100`
-        ).then(d => setAppointments(d?.appointments ?? []));
+        ).then(result => {
+            if (!result.ok) {
+                setError(result.message);
+                return;
+            }
+            setAppointments(result.data.appointments);
+        });
     }, [businessId]);
 
     useEffect(() => {
@@ -758,14 +811,9 @@ function Appointments({ businessId }: { businessId: number }) {
 
     async function updateStatus(id: number, status: string) {
         setError(null);
-        const res = await fetch(`/api/v1/appointment/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status })
-        });
-        if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            setError(data.message ?? "Could not update appointment");
+        const r = await apiPut(`/api/v1/appointment/${id}`, { status });
+        if (!r.ok) {
+            setError(r.message || "Could not update appointment");
             return;
         }
         load();
@@ -841,7 +889,13 @@ function Moderation({ businessId }: { businessId: number }) {
     const load = useCallback(() => {
         apiGet<{ moderations: Moderation[] }>(
             `/api/v1/moderation?state=true&limit=100`
-        ).then(d => setModerations(d?.moderations ?? []));
+        ).then(result => {
+            if (!result.ok) {
+                setError(result.message);
+                return;
+            }
+            setModerations(result.data.moderations);
+        });
     }, []);
 
     useEffect(() => {
@@ -856,7 +910,7 @@ function Moderation({ businessId }: { businessId: number }) {
             status
         });
         if (!r.ok) {
-            setError(r.message ?? "Could not update moderation");
+            setError(r.message || "Could not update moderation");
             return;
         }
         load();

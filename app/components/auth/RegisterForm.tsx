@@ -11,6 +11,7 @@ import Link from "next/link";
 
 import Input from "@/app/components/ui/Input";
 import Button from "@/app/components/ui/Button";
+import { apiPost } from "@/app/lib/api/client";
 
 interface RegisterForm {
     name: string;
@@ -68,28 +69,17 @@ export default function RegisterForm() {
         setLoading(true);
 
         try {
-            const response =
-                await fetch("/api/v1/auth/register", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        name: form.name,
-                        last_name: form.last_name,
-                        email: form.email,
-                        phone: form.phone,
-                        password: form.password
-                    })
-                });
+            const result = await apiPost("/api/v1/auth/register", {
+                name: form.name,
+                last_name: form.last_name,
+                email: form.email,
+                phone: form.phone,
+                password: form.password
+            });
 
-            const result = await response.json();
-
-            if (!response.ok) {
+            if (!result.ok) {
                 setError(
-                    result.message ??
-                    result.error ??
-                    "Unable to create account"
+                    result.message || "Unable to create account"
                 );
 
                 return;

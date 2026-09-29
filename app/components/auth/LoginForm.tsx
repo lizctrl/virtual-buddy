@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import Input from "@/app/components/ui/Input";
 import Button from "@/app/components/ui/Button";
+import { apiPost } from "@/app/lib/api/client";
 
 interface LoginForm {
     email: string;
@@ -43,21 +44,11 @@ export default function LoginForm() {
         setLoading(true);
 
         try {
-            const response = await fetch("/api/v1/auth/login", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(form)
-            });
+            const result = await apiPost("/api/v1/auth/login", form);
 
-            const result = await response.json();
-
-            if (!response.ok) {
+            if (!result.ok) {
                 setError(
-                    result.message ??
-                    result.error ??
-                    "Unable to login"
+                    result.message || "Unable to login"
                 );
 
                 return;

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import AppLayout from "@/app/components/layout/AppLayout";
+import { apiGet } from "@/app/lib/api/client";
 
 interface Business {
     id: number;
@@ -27,18 +28,13 @@ interface Catalog {
     services: Service[];
 }
 
-async function apiGet<T>(url: string): Promise<T | null> {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return res.json();
-}
-
 export default function BusinessDetailPage() {
     const params = useParams<{ id: string }>();
     const id = Number(params.id);
 
     const [business, setBusiness] = useState<Business | null>(null);
     const [catalogs, setCatalogs] = useState<Catalog[]>([]);
+    const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -49,8 +45,16 @@ export default function BusinessDetailPage() {
                 `/api/v1/catalog?businessId=${id}&state=true&service=true&limit=100`
             )
         ]).then(([b, c]) => {
-            setBusiness(b?.business ?? null);
-            setCatalogs(c?.catalogs ?? []);
+            if (!b.ok) {
+                setError(b.message);
+                return;
+            }
+            if (!c.ok) {
+                setError(c.message);
+                return;
+            }
+            setBusiness(b.data.business);
+            setCatalogs(c.data.catalogs);
         }).finally(() => setLoading(false));
     }, [id]);
 
@@ -65,7 +69,9 @@ export default function BusinessDetailPage() {
     if (!business) {
         return (
             <AppLayout>
-                <p className="text-gray-500">Business not found.</p>
+                <p className={error ? "text-red-600" : "text-gray-500"}>
+                    {error ?? "Business not found."}
+                </p>
             </AppLayout>
         );
     }

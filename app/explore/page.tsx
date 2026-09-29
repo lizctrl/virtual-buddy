@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import AppLayout from "@/app/components/layout/AppLayout";
 import Input from "@/app/components/ui/Input";
+import { apiGet } from "@/app/lib/api/client";
 
 interface Business {
     id: number;
@@ -23,27 +24,32 @@ interface Service {
 
 type Tab = "businesses" | "services";
 
-async function apiGet<T>(url: string): Promise<T | null> {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return res.json();
-}
-
 export default function ExplorePage() {
     const [tab, setTab] = useState<Tab>("businesses");
     const [businesses, setBusinesses] = useState<Business[]>([]);
     const [services, setServices] = useState<Service[]>([]);
     const [search, setSearch] = useState("");
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         apiGet<{ businesses: Business[] }>(
             "/api/v1/business?state=true&limit=100"
-        ).then(d => setBusinesses(d?.businesses ?? []));
+        ).then(result => {
+            if (!result.ok) {
+                setError(result.message);
+                return;
+            }
+            setBusinesses(result.data.businesses);
+        });
+
         apiGet<{ catalogs: { services: Service[] }[] }>(
             "/api/v1/catalog?state=true&service=true&limit=100"
-        ).then(d => {
-            const all = (d?.catalogs ?? []).flatMap(c => c.services);
-            setServices(all);
+        ).then(result => {
+            if (!result.ok) {
+                setError(result.message);
+                return;
+            }
+            setServices(result.data.catalogs.flatMap(c => c.services));
         });
     }, []);
 
@@ -59,6 +65,10 @@ export default function ExplorePage() {
             <h1 className="mb-6 text-2xl font-bold text-gray-900">
                 Explore
             </h1>
+
+            {error && (
+                <p className="mb-4 text-sm text-red-600">{error}</p>
+            )}
 
             <div className="mb-6 flex gap-2 border-b border-gray-200">
                 {(
