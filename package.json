@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
-    "db:seed": "npx tsx prisma/seed.ts"
+    "db:seed": "npx tsx prisma/seed.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -21,6 +22,8 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
@@ -29,6 +32,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "husky": "^9.1.7",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "typescript": "^5"
