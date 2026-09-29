@@ -2,6 +2,7 @@
 
 import { parseBoolean } from "@/app/lib/api/boolean";
 import { ApiResponse } from "@/app/lib/api/responses";
+import { withTimeStrings } from "@/app/lib/api/times";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/db";
 import { NextRequest, NextResponse } from "next/server";
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ avai
     }
 
     return NextResponse.json(
-        ApiResponse.success("Availability retrieved successfully", { availability }),
+        ApiResponse.success("Availability retrieved successfully", { availability: withTimeStrings(availability) }),
         { status: 200 }
     );
 }

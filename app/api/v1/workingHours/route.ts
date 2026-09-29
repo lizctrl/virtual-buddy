@@ -4,6 +4,7 @@ import { parseBoolean } from "@/app/lib/api/boolean";
 import { parsePagination } from "@/app/lib/api/pagination";
 import { parseDateRanges, parseRanges } from "@/app/lib/api/ranges";
 import { ApiResponse } from "@/app/lib/api/responses";
+import { toTimeOfDay, withTimeStrings } from "@/app/lib/api/times";
 import { parseSorting } from "@/app/lib/api/sorting";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/db";
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
     }
 
 
-    const [workingHours, count] = await Promise.all([
+    const [rows, count] = await Promise.all([
         prisma.workingHours.findMany({
             where,
             take: limit,
@@ -91,6 +92,9 @@ export async function GET(req: NextRequest) {
             where
         })
     ]);
+
+    // startTime/endTime are DateTime columns but the UI works in "HH:mm".
+    const workingHours = rows.map(withTimeStrings);
 
     const totalPages = Math.ceil(count / limit);
     return NextResponse.json(ApiResponse.success("Working hours retrieved successfully",
@@ -157,9 +161,9 @@ export async function POST(req: NextRequest) {
             { status: 400 }
         );
     }
-    const startTime = new Date(data.startTime);
-    const endTime = new Date(data.endTime);
-    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+    const startTime = toTimeOfDay(data.startTime);
+    const endTime = toTimeOfDay(data.endTime);
+    if (startTime === null || endTime === null) {
         return NextResponse.json(
             ApiResponse.invalidParameter("Invalid startTime or endTime"),
             { status: 400 }
@@ -175,7 +179,7 @@ export async function POST(req: NextRequest) {
         }
     })
     return NextResponse.json(
-        ApiResponse.success("Working hours created successfully", { workingHours }),
+        ApiResponse.success("Working hours created successfully", { workingHours: withTimeStrings(workingHours) }),
         { status: 200 }
     );
 }
