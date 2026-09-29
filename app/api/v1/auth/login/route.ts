@@ -25,7 +25,7 @@ export async function POST(request: Request) {
         }
         // Check if password is correct
         const { password: hashPassword, ...curatedUser } = user;
-        const isPasswordCorrect = comparePassword(password, user.password)
+        const isPasswordCorrect = await comparePassword(password, user.password)
         if (!isPasswordCorrect) {
             return NextResponse.json(
                 ApiResponse.unauthenticated("Invalid email or password"),
