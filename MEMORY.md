@@ -53,9 +53,14 @@
 ## Table Kit (2026-09-29)
 
 - `app/components/table/Datatable.tsx` was an empty placeholder committed on
-  2026-09-25 in `52cf22b` — implemented now, ~470 lines
+  2026-09-25 in `52cf22b` — implemented now
 - Presentational and generic: `<T>` rows, `Column<T>[]` with `accessor` +
   optional `render(row)`. No fetch, no data ownership
+- **`Column.sortBy` exists because `key` is not a field name.** A column keyed
+  `service` that renders `a.service.name` must declare `sortBy: "serviceId"`,
+  otherwise clicking its header sends `sortBy=service` and `parseSorting`
+  rejects it with 400. `sortBy` defaults to `key`, so the bug only appears the
+  moment a key and a backend field diverge
 - Sorting is **controlled** (`sortBy` + `onSortChange`) because the API already
   supports `sortBy`/`sortOrder`; the table never reorders `rows`
 - Selection is **uncontrolled** — internal `Set` keyed by `rowKey`, pruned to
@@ -70,6 +75,10 @@
 - `ui/Checkbox.tsx` gained `indeterminate?: boolean` for the tri-state select-all.
   It needs `"use client"` + a `useRef`/`useEffect` because `indeterminate` is a
   DOM property, not an HTML attribute, so it can't travel through `...props`
+- **First adopter:** the dashboard Appointments tab. It pages with `limit=10`
+  off the route's `pagination` block, which also removed a silent `limit=100`
+  cap that dropped appointments past the hundredth
+
 
 ## Lint Rule: no setState in useEffect
 
@@ -152,8 +161,9 @@
 ## Test Data Pollution (2026-09-29)
 
 - End-to-end verification wrote real rows into the dev database: user 5,
-  business 2, catalog 2, service 2, appointment 2, availability 2,
-  workingHours 2, plus a notification
+  business 2, catalog 2, service 2, appointments 2-7, availability 2,
+  workingHours 2, plus notifications. Appointments 3 and 4 were flipped to
+  confirmed/rejected to exercise the PUT path
 - `prisma/seed.ts` is empty, so there is no fixture to reset to
 
 

@@ -71,6 +71,9 @@ No test framework is configured.
 - `Datatable` sorting is **controlled** — it never reorders `rows`, it only emits
   `onSortChange` so the page can refetch. Selection is **uncontrolled** (internal
   `Set`, pruned to visible rows on change)
+- A `Column`'s `key` is its identity, not a field name. If the column is sortable
+  and the key is not a field the route accepts, set `sortBy` explicitly —
+  otherwise the header click sends a value `parseSorting` rejects with a 400
 - React Compiler lint rules are on: no `setState` inside `useEffect`. Adjust state
   during render when syncing to changed props instead
 
