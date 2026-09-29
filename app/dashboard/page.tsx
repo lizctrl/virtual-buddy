@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import AppLayout from "@/app/components/layout/AppLayout";
+import Datatable, { Column } from "@/app/components/table/Datatable";
 import Input from "@/app/components/ui/Input";
 import Button from "@/app/components/ui/Button";
 import Badge from "@/app/components/ui/Badge";
 import Select from "@/app/components/ui/Select";
 import { apiGet, apiPost, apiPut } from "@/app/lib/api/client";
+import type { Pagination } from "@/app/lib/api/client";
 import { User } from "@/app/types/types";
 
 interface Business {
@@ -813,20 +815,33 @@ function Availability({ businessId }: { businessId: number }) {
 function Appointments({ ownerId }: { ownerId: number | null }) {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [sortBy, setSortBy] = useState("dueDate");
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
     const load = useCallback(() => {
         if (ownerId === null) return;
 
-        apiGet<{ appointments: Appointment[] }>(
-            `/api/v1/appointment?ownerId=${ownerId}&state=true&limit=100`
-        ).then(result => {
-            if (!result.ok) {
-                setLoadError(result.message);
-                return;
-            }
-            setAppointments(result.data.appointments);
-        });
-    }, [ownerId]);
+        apiGet<{
+            appointments: Appointment[];
+            pagination: Pagination;
+        }>(
+            `/api/v1/appointment?ownerId=${ownerId}` +
+            `&state=true&limit=10&page=${page}` +
+            `&sortBy=${sortBy}&sortOrder=${sortOrder}`
+        )
+            .then(result => {
+                if (!result.ok) {
+                    setLoadError(result.message);
+                    return;
+                }
+                setAppointments(result.data.appointments);
+                setTotalPages(result.data.pagination.totalPages);
+            })
+            .finally(() => setLoading(false));
+    }, [ownerId, page, sortBy, sortOrder]);
 
     useEffect(() => {
         load();
@@ -836,6 +851,12 @@ function Appointments({ ownerId }: { ownerId: number | null }) {
         ownerId === null
             ? "This business has no owner to load appointments by."
             : loadError;
+
+    function handleSortChange(field: string, order: "asc" | "desc") {
+        setSortBy(field);
+        setSortOrder(order);
+        setPage(1);
+    }
 
     async function updateStatus(id: number, status: string) {
         setLoadError(null);
@@ -854,58 +875,82 @@ function Appointments({ ownerId }: { ownerId: number | null }) {
                 ? "danger"
                 : "warning";
 
+    // sortBy values must stay inside the route's allowedSortFields:
+    // id, dueDate, serviceId, status, userId
+    const columns: Column<Appointment>[] = [
+        {
+            key: "service",
+            header: "Service",
+            accessor: "serviceId",
+            sortBy: "serviceId",
+            render: a => a.service?.name ?? `Service #${a.serviceId}`
+        },
+        {
+            key: "user",
+            header: "User",
+            accessor: "userId",
+            sortBy: "userId",
+            render: a => `User #${a.userId}`
+        },
+        {
+            key: "dueDate",
+            header: "Date",
+            accessor: "dueDate",
+            render: a => new Date(a.dueDate).toLocaleString()
+        },
+        {
+            key: "status",
+            header: "Status",
+            accessor: "status",
+            render: a => (
+                <Badge variant={statusVariant(a.status)}>
+                    {a.status}
+                </Badge>
+            )
+        }
+    ];
+
     return (
-        <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div>
             {error && (
                 <p className="mb-3 text-sm text-red-600">{error}</p>
             )}
-            <ul className="space-y-3">
-                {appointments.map(a => (
-                    <li
-                        key={a.id}
-                        className="flex items-center justify-between rounded-md border border-gray-200 p-4"
-                    >
-                        <div>
-                            <p className="font-medium text-gray-900">
-                                {a.service?.name ?? `Service #${a.serviceId}`}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                User #{a.userId} ·{" "}
-                                {new Date(a.dueDate).toLocaleString()}
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Badge variant={statusVariant(a.status)}>
-                                {a.status}
-                            </Badge>
-                            {a.status === "pending" && (
-                                <>
-                                    <Button
-                                        onClick={() =>
-                                            updateStatus(a.id, "confirmed")
-                                        }
-                                    >
-                                        Confirm
-                                    </Button>
-                                    <Button
-                                        variant="danger"
-                                        onClick={() =>
-                                            updateStatus(a.id, "rejected")
-                                        }
-                                    >
-                                        Reject
-                                    </Button>
-                                </>
-                            )}
-                        </div>
-                    </li>
-                ))}
-                {appointments.length === 0 && (
-                    <li className="text-sm text-gray-500">
-                        No appointments yet.
-                    </li>
-                )}
-            </ul>
+
+            <Datatable
+                rows={appointments}
+                columns={columns}
+                rowKey={a => a.id}
+                loading={loading}
+                emptyMessage="No appointments yet."
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSortChange={handleSortChange}
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                actions={
+                    a =>
+                        a.status === "pending" ? (
+                            <div className="flex justify-end gap-2">
+                                <Button
+                                    onClick={() =>
+                                        updateStatus(a.id, "confirmed")
+                                    }
+                                >
+                                    Confirm
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    onClick={() =>
+                                        updateStatus(a.id, "rejected")
+                                    }
+                                >
+                                    Reject
+                                </Button>
+                            </div>
+                        ) : null
+                }
+            />
         </div>
     );
 }
