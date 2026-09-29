@@ -63,6 +63,7 @@ model Business {
 
   catalogs    Catalog[]
   inventories Inventory[]
+  moderations Moderation[]
 
 
   @@map("businesses")
@@ -131,10 +132,12 @@ model Moderation {
   id         Int      @id @default(autoincrement())
   createTime DateTime @default(now())
   userId     Int
+  businessId Int
   status     String
   state      Boolean @default(true)
 
-  user User @relation(fields: [userId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
 
   @@map("moderations")
 }
