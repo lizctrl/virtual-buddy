@@ -223,7 +223,10 @@ export default function DashboardPage() {
             </div>
 
             {tab === "overview" && (
-                <Overview businessId={business.id} />
+                <Overview
+                    businessId={business.id}
+                    ownerId={business.ownerId}
+                />
             )}
             {tab === "catalogs" && (
                 <CatalogsServices
@@ -234,7 +237,7 @@ export default function DashboardPage() {
                 <Availability businessId={business.id} />
             )}
             {tab === "appointments" && (
-                <Appointments businessId={business.id} />
+                <Appointments ownerId={business.ownerId} />
             )}
             {tab === "moderation" && (
                 <Moderation businessId={business.id} />
@@ -325,31 +328,49 @@ function BusinessOnboarding({
     );
 }
 
-function Overview({ businessId }: { businessId: number }) {
+function Overview({
+    businessId,
+    ownerId
+}: {
+    businessId: number;
+    ownerId: number | null;
+}) {
     const [catalogs, setCatalogs] = useState<Catalog[]>([]);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
-    const [error, setError] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
         apiGet<{ catalogs: Catalog[] }>(
             `/api/v1/catalog?businessId=${businessId}&state=true&service=true&limit=100`
         ).then(result => {
             if (!result.ok) {
-                setError(result.message);
+                setLoadError(result.message);
                 return;
             }
             setCatalogs(result.data.catalogs);
         });
+    }, [businessId]);
+
+    useEffect(() => {
+        // The appointment route scopes by `ownerId`, which is the owner
+        // *user* id, not the business id.
+        if (ownerId === null) return;
+
         apiGet<{ appointments: Appointment[] }>(
-            `/api/v1/appointment?ownerId=${businessId}&state=true&limit=100`
+            `/api/v1/appointment?ownerId=${ownerId}&state=true&limit=100`
         ).then(result => {
             if (!result.ok) {
-                setError(result.message);
+                setLoadError(result.message);
                 return;
             }
             setAppointments(result.data.appointments);
         });
-    }, [businessId]);
+    }, [ownerId]);
+
+    const error =
+        ownerId === null
+            ? "This business has no owner to load appointments by."
+            : loadError;
 
     const totalServices = catalogs.reduce(
         (sum, c) => sum + c.services.length,
@@ -789,31 +810,38 @@ function Availability({ businessId }: { businessId: number }) {
     );
 }
 
-function Appointments({ businessId }: { businessId: number }) {
+function Appointments({ ownerId }: { ownerId: number | null }) {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
-    const [error, setError] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const load = useCallback(() => {
+        if (ownerId === null) return;
+
         apiGet<{ appointments: Appointment[] }>(
-            `/api/v1/appointment?ownerId=${businessId}&state=true&limit=100`
+            `/api/v1/appointment?ownerId=${ownerId}&state=true&limit=100`
         ).then(result => {
             if (!result.ok) {
-                setError(result.message);
+                setLoadError(result.message);
                 return;
             }
             setAppointments(result.data.appointments);
         });
-    }, [businessId]);
+    }, [ownerId]);
 
     useEffect(() => {
         load();
     }, [load]);
 
+    const error =
+        ownerId === null
+            ? "This business has no owner to load appointments by."
+            : loadError;
+
     async function updateStatus(id: number, status: string) {
-        setError(null);
+        setLoadError(null);
         const r = await apiPut(`/api/v1/appointment/${id}`, { status });
         if (!r.ok) {
-            setError(r.message || "Could not update appointment");
+            setLoadError(r.message || "Could not update appointment");
             return;
         }
         load();
