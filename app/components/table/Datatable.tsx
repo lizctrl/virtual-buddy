@@ -18,6 +18,16 @@ export interface Column<T> {
     /** Field of T read when no custom render is given. */
     accessor?: keyof T;
 
+    /**
+     * Field name reported to `onSortChange`. Defaults to `key`.
+     *
+     * Set it whenever the column is sortable but its key is not a field the
+     * backend accepts — a "Service" column keyed `service` that sorts by
+     * `serviceId`, for example. Without it, clicking the header would send a
+     * `sortBy` the route rejects.
+     */
+    sortBy?: string;
+
     /** Custom cell content. Use it for <Badge>, buttons, links, etc. */
     render?: (row: T) => ReactNode;
 
@@ -71,6 +81,10 @@ const sortIndicators: Record<SortOrder, string> = {
 };
 
 const placeholderRows = Array.from({ length: 5 }, (_, i) => i);
+
+function sortFieldOf<T>(column: Column<T>): string {
+    return column.sortBy ?? column.key;
+}
 
 export default function Datatable<T>({
     rows,
@@ -143,11 +157,11 @@ export default function Datatable<T>({
 
     function handleSort(column: Column<T>) {
         if (!onSortChange) return;
+
+        const field = sortFieldOf(column);
         const next: SortOrder =
-            sortBy === column.key && sortOrder === "asc"
-                ? "desc"
-                : "asc";
-        onSortChange(column.key, next);
+            sortBy === field && sortOrder === "asc" ? "desc" : "asc";
+        onSortChange(field, next);
     }
 
     function handleRowKeyDown(
@@ -209,7 +223,8 @@ export default function Datatable<T>({
                             )}
 
                             {columns.map(column => {
-                                const isSorted = sortBy === column.key;
+                                const isSorted =
+                                    sortBy === sortFieldOf(column);
                                 const isSortable = Boolean(
                                     column.sortable ?? column.accessor
                                 );
