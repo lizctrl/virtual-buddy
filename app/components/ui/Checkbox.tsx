@@ -1,4 +1,10 @@
-import { InputHTMLAttributes } from "react";
+"use client";
+
+import {
+    InputHTMLAttributes,
+    useEffect,
+    useRef
+} from "react";
 
 interface CheckboxProps
     extends Omit<
@@ -7,13 +13,29 @@ interface CheckboxProps
     > {
 
     label?: string;
+
+    /**
+     * Renders the mixed state used by "select all" checkboxes.
+     * `indeterminate` is a DOM property, not an HTML attribute,
+     * so it cannot be forwarded through ...props.
+     */
+    indeterminate?: boolean;
 }
 
 export default function Checkbox({
     label,
+    indeterminate = false,
     id,
     ...props
 }: CheckboxProps) {
+
+    const ref = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (ref.current) {
+            ref.current.indeterminate = indeterminate;
+        }
+    }, [indeterminate]);
 
     return (
         <label
@@ -26,6 +48,7 @@ export default function Checkbox({
             "
         >
             <input
+                ref={ref}
                 id={id}
                 type="checkbox"
                 className="
