@@ -1,10 +1,10 @@
 export type User = {
+    id: number,
     name: string,
     email: string,
     last_name: string,
     state: boolean,
     phone: string,
-    password: string,
 }
 export type Services = {
     id: string

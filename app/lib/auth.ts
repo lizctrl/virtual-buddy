@@ -49,7 +49,7 @@ export async function getCurrentUser(): Promise<User | null> {
             return null;
         }
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { id, ...user } = userFromDb
+        const { password, ...user } = userFromDb
         return user as User;
 
     } catch (error) {
