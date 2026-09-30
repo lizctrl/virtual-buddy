@@ -3,10 +3,11 @@ import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import { User } from "../types/types";
 import { prisma } from "./db";
-import { use } from "react";
 
-const JWT_SECRET = process.env.JWT_SECRET! as string;
-
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    throw new Error("JWT_SECRET environment variable is not set");
+}
 export async function hashPassword(password: string) {
     return await bcrypt.hash(password, 10);
 }
@@ -40,13 +41,15 @@ export async function getCurrentUser(): Promise<User | null> {
 
         const userFromDb = await prisma.user.findUnique({
             where: {
-                id: decoded.userId
+                id: decoded.userId,
+                state: true
             }
         })
         if (!userFromDb) {
             return null;
         }
-        const { id, ...user } = userFromDb
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { password, ...user } = userFromDb
         return user as User;
 
     } catch (error) {
