@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import AppLayout from "@/app/components/layout/AppLayout";
@@ -74,6 +74,35 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [reloadCount, setReloadCount] = useState(0);
+    const [creating, setCreating] = useState(false);
+    // Element id to focus after the next render; the button or form being left unmounts with the focus.
+    const pendingFocus = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!pendingFocus.current) return;
+        document.getElementById(pendingFocus.current)?.focus();
+        pendingFocus.current = null;
+    });
+
+    function openCreate() {
+        setCreating(true);
+        window.scrollTo(0, 0);
+    }
+
+    function cancelCreate() {
+        setCreating(false);
+        pendingFocus.current = "new-business-button";
+        window.scrollTo(0, 0);
+    }
+
+    function businessCreated(created: Business) {
+        // Show the new business now; the reload then replaces the list with the server's.
+        setBusinesses(list => list.some(b => b.id === created.id) ? list : [...list, created]);
+        setSelectedBusiness(created.id);
+        setCreating(false);
+        setReloadCount(c => c + 1);
+        pendingFocus.current = "business-title";
+    }
 
     useEffect(() => {
         let active = true;
@@ -127,7 +156,7 @@ export default function DashboardPage() {
         );
     }
 
-    if (businesses.length === 0) {
+    if (businesses.length === 0 || creating) {
         return (
             <AppLayout>
                 {error && (
@@ -137,7 +166,8 @@ export default function DashboardPage() {
                 )}
 
                 <BusinessOnboarding
-                    onCreated={() => setReloadCount(c => c + 1)}
+                    onCreated={businessCreated}
+                    onCancel={businesses.length > 0 ? cancelCreate : undefined}
                 />
             </AppLayout>
         );
@@ -150,7 +180,7 @@ export default function DashboardPage() {
         <AppLayout>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
+                    <h1 id="business-title" tabIndex={-1} className="text-2xl font-bold text-gray-900 outline-none">
                         {business.name}
                     </h1>
                     <p className="text-sm text-gray-500">
@@ -158,19 +188,24 @@ export default function DashboardPage() {
                     </p>
                 </div>
 
-                {businesses.length > 1 && (
-                    <Select
-                        aria-label="Seleccionar negocio"
-                        value={business.id}
-                        onChange={e =>
-                            setSelectedBusiness(Number(e.target.value))
-                        }
-                        options={businesses.map(b => ({
-                            label: b.name,
-                            value: b.id
-                        }))}
-                    />
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                    {businesses.length > 1 && (
+                        <Select
+                            aria-label="Seleccionar negocio"
+                            value={business.id}
+                            onChange={e =>
+                                setSelectedBusiness(Number(e.target.value))
+                            }
+                            options={businesses.map(b => ({
+                                label: b.name,
+                                value: b.id
+                            }))}
+                        />
+                    )}
+                    <Button id="new-business-button" type="button" variant="secondary" onClick={openCreate}>
+                        Nuevo negocio
+                    </Button>
+                </div>
             </div>
 
             {error && (
@@ -226,37 +261,44 @@ export default function DashboardPage() {
     );
 }
 
-function BusinessOnboarding({ onCreated }: { onCreated: () => void }) {
+function BusinessOnboarding({ onCreated, onCancel }: { onCreated: (business: Business) => void; onCancel?: () => void }) {
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    // State lags a render behind; a ref blocks a second submit in the same tick.
+    const submitting = useRef(false);
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
+        if (submitting.current) return;
+        submitting.current = true;
         setError(null);
         setLoading(true);
-        const result = await apiPost("/api/v1/business", {
+        const result = await apiPost<{ business: Business }>("/api/v1/business", {
             name,
             description,
             cantonCode: Number(new FormData(e.currentTarget).get("cantonCode")) || null
         });
         setLoading(false);
-        if (!result.ok) {
-            setError(result.message || "Could not create business");
+        submitting.current = false;
+        const created = result.ok ? result.data?.business : undefined;
+        if (!created) {
+            setError((!result.ok && result.message) || "No se pudo crear el negocio.");
             return;
         }
-        onCreated();
+        onCreated(created);
     }
 
     return (
         <div className="mx-auto max-w-lg">
             <h1 className="mb-2 text-2xl font-bold text-gray-900">
-                Create your business
+                {onCancel ? "Nuevo negocio" : "Crea tu negocio"}
             </h1>
             <p className="mb-6 text-sm text-gray-500">
-                Start by creating your business. You can add catalogs, services
-                and availability next.
+                {onCancel
+                    ? "Después podrás agregar sus catálogos, servicios y horarios."
+                    : "Empieza por crear tu negocio. Después podrás agregar catálogos, servicios y horarios."}
             </p>
 
             <form
@@ -266,7 +308,8 @@ function BusinessOnboarding({ onCreated }: { onCreated: () => void }) {
                 <Input
                     id="name"
                     name="name"
-                    label="Business name"
+                    label="Nombre del negocio"
+                    autoFocus={!!onCancel}
                     value={name}
                     onChange={e => setName(e.target.value)}
                     required
@@ -274,31 +317,37 @@ function BusinessOnboarding({ onCreated }: { onCreated: () => void }) {
                 <Input
                     id="description"
                     name="description"
-                    label="Description"
+                    label="Descripción"
                     value={description}
                     onChange={e => setDescription(e.target.value)}
                     required
                 />
 
                 {error && (
-                    <p className="text-sm text-red-600">{error}</p>
+                    <p role="alert" className="text-sm text-red-600">{error}</p>
                 )}
 
                 <LocationFields />
 
                 <Button type="submit" disabled={loading}>
-                    {loading ? "Creating..." : "Create business"}
+                    {loading ? "Creando…" : "Crear negocio"}
                 </Button>
 
+                {onCancel ? (
+                    <Button type="button" variant="secondary" disabled={loading} onClick={onCancel}>
+                        Cancelar
+                    </Button>
+                ) : (
                 <p className="text-center text-sm text-gray-500">
-                    Just want to book services?{" "}
+                    ¿Solo quieres reservar servicios?{" "}
                     <Link
                         href="/explore"
                         className="font-medium text-blue-600 hover:underline"
                     >
-                        Explore as a client
+                        Explora como cliente
                     </Link>
                 </p>
+                )}
             </form>
         </div>
     );
