@@ -1,0 +1,32 @@
+{
+  "page": {
+    "width": 48,
+    "height": 48
+  },
+  "layers": [
+    {
+      "id": "fondo",
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 48,
+      "height": 48,
+      "fill": "#4f46e5",
+      "radius": 10
+    },
+    {
+      "id": "iniciales",
+      "type": "text",
+      "x": 0,
+      "y": 11,
+      "width": 48,
+      "height": 28,
+      "text": "VB",
+      "fontSize": 23,
+      "fontWeight": 700,
+      "lineHeight": 1,
+      "color": "#ffffff",
+      "align": "center"
+    }
+  ]
+}

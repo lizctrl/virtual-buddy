@@ -1,0 +1,40 @@
+{
+  "page": {
+    "width": 180,
+    "height": 180
+  },
+  "layers": [
+    {
+      "id": "fondo",
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 180,
+      "height": 180,
+      "fill": "#4f46e5"
+    },
+    {
+      "id": "iniciales",
+      "type": "text",
+      "x": 0,
+      "y": 48,
+      "width": 180,
+      "height": 100,
+      "text": "VB",
+      "fontSize": 83,
+      "fontWeight": 700,
+      "lineHeight": 1,
+      "color": "#ffffff",
+      "align": "center"
+    },
+    {
+      "id": "punto",
+      "type": "ellipse",
+      "x": 134,
+      "y": 134,
+      "width": 19,
+      "height": 19,
+      "fill": "#c7d2fe"
+    }
+  ]
+}
