@@ -12,6 +12,13 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+        return NextResponse.json(
+            ApiResponse.unauthenticated("User not authenticated"),
+            { status: 401 }
+        );
+    }
     const { searchParams } = req.nextUrl;
 
     // Pagination
@@ -99,8 +106,8 @@ export async function GET(req: NextRequest) {
     const { page, limit, skip } = paginationResult;
 
 
-    // Dynamic WHERE
-    const where: Prisma.BusinessWhereInput = {};
+    // Owner-only listing; the public directory is /api/v1/directory.
+    const where: Prisma.BusinessWhereInput = { AND: [{ ownerId: currentUser.id }] };
 
     if (name) {
         where.name = {

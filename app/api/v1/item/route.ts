@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
 
 
     // Dynamic WHERE
-    const where: Prisma.ItemWhereInput = {};
+    const where: Prisma.ItemWhereInput = { inventory: { business: { ownerId: currentUser.id, state: true } } };
 
 
     if (idFrom !== null || idTo !== null || excludedIds.length > 0) {
@@ -154,6 +154,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
             ApiResponse.missingField("Missing inventoryId field"),
             { status: 400 }
+        );
+    }
+    const inventory = await prisma.inventory.findFirst({
+        where: { id: data.inventoryId, state: true, business: { ownerId: currentUser.id, state: true } },
+        select: { id: true }
+    });
+    if (!inventory) {
+        return NextResponse.json(
+            ApiResponse.notFound("Inventory not found"),
+            { status: 404 }
         );
     }
     // database

@@ -34,6 +34,13 @@ export async function GET(
         );
     }
 
+    if (id !== currentUser.id) {
+        return NextResponse.json(
+            ApiResponse.unauthorized("Solo puedes consultar tus propios datos."),
+            { status: 403 }
+        );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const appointmentsResult = parseBoolean(searchParams, "appointments");
     if (!appointmentsResult.success) {
@@ -157,6 +164,12 @@ export async function DELETE(
         return NextResponse.json(
             ApiResponse.invalidParameter("Invalid userId parameter"),
             { status: 400 }
+        );
+    }
+    if (id !== currentUser.id) {
+        return NextResponse.json(
+            ApiResponse.unauthorized("Solo puedes desactivar tu propia cuenta."),
+            { status: 403 }
         );
     }
     const user = await getUser(id);

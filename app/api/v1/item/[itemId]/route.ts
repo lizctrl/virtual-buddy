@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ item
         );
     }
 
-    const item = await getItem(id);
+    const item = await getItem(id, currentUser.id);
     if (!item) {
         return NextResponse.json(
             ApiResponse.notFound("Item not found"),
@@ -69,7 +69,7 @@ export async function PUT(
         );
     }
 
-    const item = await getItem(id);
+    const item = await getItem(id, currentUser.id);
 
     if (!item) {
         return NextResponse.json(
@@ -82,6 +82,16 @@ export async function PUT(
         return NextResponse.json(
             ApiResponse.missingField("Missing inventoryId field"),
             { status: 400 }
+        );
+    }
+    const inventory = await prisma.inventory.findFirst({
+        where: { id: data.inventoryId, state: true, business: { ownerId: currentUser.id, state: true } },
+        select: { id: true }
+    });
+    if (!inventory) {
+        return NextResponse.json(
+            ApiResponse.notFound("Inventory not found"),
+            { status: 404 }
         );
     }
     // database
@@ -134,7 +144,7 @@ export async function DELETE(
             { status: 400 }
         );
     }
-    const item = await getItem(id);
+    const item = await getItem(id, currentUser.id);
     if (!item) {
         return NextResponse.json(
             ApiResponse.notFound("Item not found"),
@@ -164,10 +174,11 @@ export async function DELETE(
         { status: 200 }
     );
 }
-async function getItem(itemId: number) {
-    return prisma.item.findUnique({
+async function getItem(itemId: number, ownerId: number) {
+    return prisma.item.findFirst({
         where: {
-            id: itemId
+            id: itemId,
+            inventory: { business: { ownerId, state: true } }
         },
         select: {
             id: true,

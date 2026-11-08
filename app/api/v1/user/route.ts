@@ -69,7 +69,8 @@ export async function GET(req: NextRequest) {
 
     // Dynamic WHERE
 
-    const where: Prisma.UserWhereInput = {};
+    // No admin role yet: a session may only list itself.
+    const where: Prisma.UserWhereInput = { AND: [{ id: user.id }] };
 
 
     if (state !== null) {

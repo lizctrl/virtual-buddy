@@ -51,7 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cata
     const business = businessResult.value ?? false;
 
     // database
-    const catalog = await getCatalog(id, service, business);
+    const catalog = await getCatalog(id, service, business, currentUser.id);
     if (!catalog) {
         return NextResponse.json(
             ApiResponse.notFound("Catalog not found"),
@@ -67,11 +67,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ cata
 async function getCatalog(
     catalogId: number,
     service = false,
-    business = false
+    business = false,
+    ownerId?: number
 ) {
-    return prisma.catalog.findUnique({
+    return prisma.catalog.findFirst({
         where: {
-            id: catalogId
+            id: catalogId,
+            ...(ownerId !== undefined && { business: { ownerId, state: true } })
         },
         select: {
             id: true,
@@ -110,7 +112,7 @@ export async function PUT(
         );
     }
 
-    const catalog = await getCatalog(id);
+    const catalog = await getCatalog(id, false, false, currentUser.id);
 
     if (!catalog) {
         return NextResponse.json(
@@ -172,7 +174,7 @@ export async function DELETE(
             { status: 400 }
         );
     }
-    const catalog = await getCatalog(id);
+    const catalog = await getCatalog(id, false, false, currentUser.id);
     if (!catalog) {
         return NextResponse.json(
             ApiResponse.notFound("Catalog not found"),

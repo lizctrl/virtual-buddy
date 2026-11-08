@@ -11,6 +11,13 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+        return NextResponse.json(
+            ApiResponse.unauthenticated("User not authenticated"),
+            { status: 401 }
+        );
+    }
     const { searchParams } = req.nextUrl;
 
     // Pagination
@@ -90,7 +97,8 @@ export async function GET(req: NextRequest) {
 
 
     // Dynamic WHERE
-    const where: Prisma.CatalogWhereInput = {};
+    // Owner-only listing; public catalogs come from /api/v1/directory.
+    const where: Prisma.CatalogWhereInput = { business: { ownerId: currentUser.id, state: true } };
 
     if (name) {
         where.name = {
@@ -188,6 +196,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
             ApiResponse.invalidParameter("Invalid businessId parameter"),
             { status: 400 }
+        );
+    }
+    const business = await prisma.business.findFirst({
+        where: { id: data.businessId, ownerId: currentUser.id, state: true },
+        select: { id: true }
+    });
+    if (!business) {
+        return NextResponse.json(
+            ApiResponse.notFound("Business not found"),
+            { status: 404 }
         );
     }
     // database
