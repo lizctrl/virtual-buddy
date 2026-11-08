@@ -59,7 +59,9 @@ export async function POST(request: NextRequest) {
             }
         })
         const token = await generateToken(newUser.id)
-        const response = NextResponse.json({ user: newUser, token }, { status: 201 })
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { password: _hash, ...user } = newUser
+        const response = NextResponse.json({ user }, { status: 201 })
         response.cookies.set("token", token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
