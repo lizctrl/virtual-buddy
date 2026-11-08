@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import LoginForm from "@/app/components/auth/LoginForm";
+
+export const metadata: Metadata = { title: "Iniciar sesión", alternates: { canonical: "/login" } };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     const { next } = await searchParams;

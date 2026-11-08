@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { siteUrl } from "./lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,15 +13,28 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const description =
+  "Encuentra negocios de Costa Rica y agenda tu cita en línea. Para negocios: agenda, servicios y horarios en un solo lugar.";
+
 export const metadata: Metadata = {
-  title: "Virtual Buddy",
-  description: "Manage your business, services, and appointments.",
+  metadataBase: siteUrl,
+  applicationName: "Virtual Buddy",
+  title: { default: "Virtual Buddy · Agenda citas en Costa Rica", template: "%s · Virtual Buddy" },
+  description,
+  openGraph: {
+    type: "website",
+    locale: "es_CR",
+    siteName: "Virtual Buddy",
+    title: "Virtual Buddy · Agenda citas en Costa Rica",
+    description,
+  },
+  twitter: { card: "summary_large_image", title: "Virtual Buddy · Agenda citas en Costa Rica", description },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="en"
+      lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>

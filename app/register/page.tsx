@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import RegisterForm
     from "@/app/components/auth/RegisterForm";
+
+export const metadata: Metadata = {
+    title: "Crear cuenta",
+    description: "Crea tu cuenta para reservar citas o administrar tu negocio en Virtual Buddy.",
+    alternates: { canonical: "/register" }
+};
 
 export default function RegisterPage() {
     return (
