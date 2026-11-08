@@ -11,11 +11,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
         }
         // Check if user exists
+        // Stored emails are lowercase (CHECK users_email_lowercase), so an exact match is case-insensitive.
         const user = await prisma.user.findUnique({
-            where: {
-                email,
-                state: true
-            }
+            where: { email: String(email).toLowerCase().trim(), state: true }
         })
         if (!user) {
             return NextResponse.json(

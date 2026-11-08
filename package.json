@@ -10,7 +10,8 @@
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "db:constraints": "npx prisma db execute --file prisma/sql/users-email-lowercase.sql --schema prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
