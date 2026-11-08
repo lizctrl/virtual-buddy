@@ -11,7 +11,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Stack
 
 - **Next.js 16.3.3** (App Router) + React 19 + TypeScript + Tailwind CSS v4
-- **PostgreSQL** via Prisma ORM (hosted on Railway)
+- **PostgreSQL** via Prisma ORM (local only for now: there is no production
+  database or deploy yet; the planned app host is Vercel)
 - **Auth**: JWT in httpOnly cookie (`token`), bcryptjs password hashing
 
 ## Commands
@@ -27,8 +28,7 @@ npm run db:constraints # lowercase-email CHECK (after db:push)
 ```
 
 `npm test` runs Vitest (`tests/**/*.test.ts`). It needs `npm install` and a
-local PostgreSQL with `DATABASE_URL` in `.env` (dev uses a local server, not
-Railway). `vitest.config.ts` points `DATABASE_URL` at `<dev db>_test` on the
+local PostgreSQL with `DATABASE_URL` in `.env`. `vitest.config.ts` points `DATABASE_URL` at `<dev db>_test` on the
 same server, or at `TEST_DATABASE_URL` (shell or `.env.test.local`; its name
 must also end in `_test`), then runs `prisma db push`, which creates the
 database if the role may (otherwise run `createdb virtual_buddy_test`), and
@@ -184,6 +184,48 @@ message is rejected at `git commit` time. Bypass deliberately with
   service's weekly hours and dated openings. Keep full-day end dates inclusive
   in the form and convert them to an exclusive midnight in the block request.
 
+## SEO and brand assets
+
+- `app/lib/site.ts` builds the public origin used by `metadataBase`, canonical
+  URLs, Open Graph images, `robots.txt` and `sitemap.xml`. Order:
+  `NEXT_PUBLIC_SITE_URL`, then Vercel's `VERCEL_PROJECT_PRODUCTION_URL`
+  (as `https://`), then `http://localhost:3000`. On Vercel nothing needs
+  setting; set `NEXT_PUBLIC_SITE_URL` (Vercel project environment variables)
+  only for another domain, as the full origin with scheme, e.g.
+  `https://<domain>`. `NEXT_PUBLIC_*` is inlined at build, so redeploy after
+  changing it. A value without a scheme makes `new URL()` throw and the build
+  fail. Off Vercel and without it, nothing fails but every URL points at
+  localhost, so search engines index nothing useful.
+- Root metadata is Spanish (`lang="es"`, `es_CR`) with a `%s · Virtual Buddy`
+  title template. Never put `alternates.canonical` in a layout that wraps other
+  pages: children inherit it. Set it per page.
+- `app/robots.ts` keeps signed-in areas and `/api/` out. `app/sitemap.ts` is
+  rendered per request (the build never needs the database) and lists public
+  businesses and their active services; the query is cached for an hour with
+  `unstable_cache`, which never stores a failed call. If the database is
+  unreachable, that one response has only `/` and `/explore`. Business and service detail pages are client components, so
+  their titles come from `generateMetadata` in a sibling `layout.tsx`: unknown
+  ids get `noindex`, a database error falls back to a generic title, and they
+  pass the parent's `openGraph.images` on because a page-level `openGraph`
+  replaces the root one.
+- "Public" means `publicBusinessWhere` (`app/lib/public-business.ts`): the
+  business and its owner's account are active. The directory, business
+  detail, sitemap and both detail `generateMetadata` share it; keep them
+  together.
+- Brand images are rendered with Lienzo from the designs in `design/brand/`.
+  Lienzo is the owner's internal JSON-to-PNG tool and is not public; without
+  it, each JSON still records the image's size, colours, shapes and text, so
+  it can be redrawn by hand. The JSON files are the reference for every
+  colour and position (e.g. the icon's light dot, the card's `#4338ca`
+  background). The same design gives byte-identical output on the same Chrome:
+  - `icon-512.json` -> `app/icon.png`; `apple-icon-180.json` -> `app/apple-icon.png`
+  - `social-card.json` -> `app/opengraph-image.png` and `app/twitter-image.png`
+    (content kept inside the centred 630x630 so square crops such as
+    WhatsApp's still show it); alt text in the matching `.alt.txt` files
+  - `favicon-16/32/48.json` -> three PNGs, then
+    `node design/brand/make-ico.mjs app/favicon.ico <16.png> <32.png> <48.png>`
+    packs them (it re-reads the result as a self-check).
+
 ## Public directory
 
 - Explore loads active businesses across all owners from the paginated
@@ -253,16 +295,17 @@ message is rejected at `git commit` time. Bypass deliberately with
   Prisma cannot declare it and `db push` keeps it, but
   `db push --force-reset` or recreating `users` drops it: run
   `db:constraints` again afterwards.
-- Production deploy of the CHECK, all in one release with no gap between
+- Before running the CHECK on any database that already has users (the
+  first production database included), in one release with no gap between
   steps 2 and 3 (any other order locks out users who type their email with
   capitals):
-  1. In psql or the Railway console (`prisma db execute` prints no rows),
+  1. In `psql` or the provider's console (`prisma db execute` prints no rows),
      run both queries and resolve every row by hand:
      `SELECT lower(btrim(email)), count(*) FROM users GROUP BY 1 HAVING count(*) > 1;`
      `SELECT id, email FROM users WHERE email ~ '[^\x20-\x7E]' OR email <> btrim(email, E' \t\r\n');`
-  2. Run `DATABASE_URL="<railway url>" npm run db:constraints` with the
-     Railway URL passed for that one command only; check its host first and
-     never edit `.env`.
-  3. Deploy the code. Railway runs neither `db push` nor this SQL.
+  2. Run `DATABASE_URL="<database url>" npm run db:constraints` with that URL
+     passed for this one command only; check its host first and never edit
+     `.env`.
+  3. Deploy the code. The app host runs neither `db push` nor this SQL.
 - Notifications are written by the server inside booking transactions; the
   notification API is read-only.
