@@ -212,6 +212,13 @@ export async function POST(req: NextRequest) {
         typeof data.description !== "string" || !data.description.trim()) {
         return Response.json(ApiResponse.invalidParameter("Escribe el nombre y la descripción del negocio."), { status: 400 });
     }
+    // Public in /directory, so cap sizes against spam.
+    if (data.name.trim().length > 100) {
+        return Response.json(ApiResponse.invalidParameter("El nombre admite hasta 100 caracteres."), { status: 400 });
+    }
+    if (data.description.trim().length > 1000) {
+        return Response.json(ApiResponse.invalidParameter("La descripción admite hasta 1000 caracteres."), { status: 400 });
+    }
     if (data.ownerId !== undefined && data.ownerId !== currentUser.id) {
         return Response.json(ApiResponse.unauthorized("Solo puedes crear negocios para tu cuenta."), { status: 403 });
     }

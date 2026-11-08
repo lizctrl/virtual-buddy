@@ -139,6 +139,15 @@ describe("account data", () => {
         expect(await ids(`&ownerId=${ownerB.id}`)).toEqual([]);
     });
 
+    it("business create caps name at 100 and description at 1000 characters", async () => {
+        signIn(ownerA);
+        const create = (name: string, description: string) =>
+            call(businesses.POST, req("/business", "POST", { name, description })).then(r => r.status);
+        expect(await create("x".repeat(101), "ok")).toBe(400);
+        expect(await create("ok", "x".repeat(1001))).toBe(400);
+        expect(await create("x".repeat(100), "x".repeat(1000))).toBe(200);
+    });
+
     it("register returns neither the password hash nor the token, and rejects a recased duplicate", async () => {
         const body = { name: "N", last_name: "L", phone: "8888-1111", password: "password123" };
         const created = await call(register.POST, req("/register", "POST", { ...body, email: "new@test" }));
