@@ -214,6 +214,15 @@ message is rejected at `git commit` time. Bypass deliberately with
 
 ## Owner and client workflow
 
+- An account can own several businesses. Panel shows the onboarding form
+  when it has none and a "Nuevo negocio" button otherwise, which reuses the
+  same form with a cancel action. It adds the business from the POST
+  response to the list before reloading, so Panel never shows another one.
+  The form is in Spanish ("Crea tu negocio" / "Nuevo negocio"). Opening it
+  focuses the name and scrolls to the top; cancelling returns focus to the
+  button; creating focuses the Panel h1 (`#business-title`, tabIndex -1).
+  Business POST caps the name at 100 and the description at 1000 characters
+  (it is public in the directory); there is no per-account business cap yet.
 - The same account can manage businesses and make personal bookings. Keep
   Panel scoped to the selected business and Mis citas scoped to the client
   identified by the session. The workflow audit is in flujo-dueno-y-cliente.txt.
