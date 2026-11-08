@@ -1,6 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { businessLocation } from "./costa-rica-locations";
 
+// Listed publicly only while the business and its owner's account are active.
+export const publicBusinessWhere = { state: true, owner: { state: true } } satisfies Prisma.BusinessWhereInput;
+
 export const publicBusinessSelect = {
     id: true,
     name: true,

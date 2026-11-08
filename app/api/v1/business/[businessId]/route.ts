@@ -2,7 +2,7 @@ import { ApiResponse } from "@/app/lib/api/responses";
 import { getCurrentUser } from "@/app/lib/auth";
 import { businessLocation } from "@/app/lib/costa-rica-locations";
 import { prisma } from "@/app/lib/db";
-import { publicBusiness, publicBusinessSelect } from "@/app/lib/public-business";
+import { publicBusiness, publicBusinessSelect, publicBusinessWhere } from "@/app/lib/public-business";
 
 export async function GET(_request: Request, context: RouteContext<"/api/v1/business/[businessId]">) {
     const id = Number((await context.params).businessId);
@@ -10,8 +10,8 @@ export async function GET(_request: Request, context: RouteContext<"/api/v1/busi
         return Response.json(ApiResponse.invalidParameter("Emprendimiento inválido."), { status: 400 });
     }
 
-    const business = await prisma.business.findUnique({
-        where: { id, state: true },
+    const business = await prisma.business.findFirst({
+        where: { id, ...publicBusinessWhere },
         select: publicBusinessSelect
     });
     if (!business) {
