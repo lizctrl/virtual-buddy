@@ -23,9 +23,21 @@ npm run lint         # ESLint (flat config)
 npm run db:generate  # regenerate Prisma client (run after schema changes)
 npm run db:push      # sync schema to database
 npm run db:seed      # dev fixtures (see below)
+npm run db:constraints # lowercase-email CHECK (after db:push)
 ```
 
-No test framework is configured.
+`npm test` runs Vitest (`tests/**/*.test.ts`). It needs `npm install` and a
+local PostgreSQL with `DATABASE_URL` in `.env` (dev uses a local server, not
+Railway). `vitest.config.ts` points `DATABASE_URL` at `<dev db>_test` on the
+same server, or at `TEST_DATABASE_URL` (shell or `.env.test.local`; its name
+must also end in `_test`), then runs `prisma db push`, which creates the
+database if the role may (otherwise run `createdb virtual_buddy_test`), and
+`npm run db:constraints` against that same test database.
+The guard rejects non-localhost hosts, but a tunnel on 127.0.0.1 passes it:
+the `_test` suffix is the real safeguard. `tests/isolation.test.ts` truncates
+every table in its `beforeAll`; a new test file must set up its own rows.
+Route handlers are called directly with `getCurrentUser` mocked. The suite
+covers cross-business reads/writes and concurrent double booking.
 
 `db:seed` runs `prisma/seed.ts` through `tsx`. It writes every row with an
 `upsert` on a pinned id in the 9000 block, so it is idempotent and does not
@@ -204,3 +216,39 @@ message is rejected at `git commit` time. Bypass deliberately with
 - Mi perfil edits the signed-in user's name, surname and phone via
   `PUT /api/v1/user/[userId]`. Verify the target against the session user ID.
   Sign-in email and password need a separate verified change flow.
+
+## Ownership checks
+
+- Every write and private read scopes by the session: filter Prisma with
+  `business: { ownerId: currentUser.id, state: true }` (or `ownedService`),
+  never trust a `businessId`/`inventoryId` from the body. Check the target of
+  a move too. Not-owned answers 404; acting on another account answers 403.
+- User routes are self-only (no admin role yet): `GET /user` lists only the
+  session user. Inventory and item GET default `state` to `false` when the
+  query omits it, so pass `state=true` to list active rows.
+- `GET /business` and `GET /catalog` (list and by ID) are owner-only
+  (session required); public data comes from `/api/v1/directory`.
+- Register returns the user without its hash and sets only the cookie.
+  Emails are stored lowercased and trimmed: the CHECK `users_email_lowercase`
+  enforces it, so `@unique` also blocks case-only duplicates and login and
+  register look up the normalized email exactly. Never use
+  `mode: "insensitive"` on email: Prisma turns it into ILIKE, where `%` and
+  `_` act as wildcards and leak which emails exist.
+- `prisma/sql/users-email-lowercase.sql` (`npm run db:constraints`) aborts
+  on case-only duplicates, then lowercases existing rows and adds the CHECK.
+  Prisma cannot declare it and `db push` keeps it, but
+  `db push --force-reset` or recreating `users` drops it: run
+  `db:constraints` again afterwards.
+- Production deploy of the CHECK, all in one release with no gap between
+  steps 2 and 3 (any other order locks out users who type their email with
+  capitals):
+  1. In psql or the Railway console (`prisma db execute` prints no rows),
+     run both queries and resolve every row by hand:
+     `SELECT lower(btrim(email)), count(*) FROM users GROUP BY 1 HAVING count(*) > 1;`
+     `SELECT id, email FROM users WHERE email ~ '[^\x20-\x7E]' OR email <> btrim(email, E' \t\r\n');`
+  2. Run `DATABASE_URL="<railway url>" npm run db:constraints` with the
+     Railway URL passed for that one command only; check its host first and
+     never edit `.env`.
+  3. Deploy the code. Railway runs neither `db push` nor this SQL.
+- Notifications are written by the server inside booking transactions; the
+  notification API is read-only.
