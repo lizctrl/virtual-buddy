@@ -118,3 +118,89 @@ message is rejected at `git commit` time. Bypass deliberately with
 ## Rules
 
 - Modify AGENTS.md y MEMORY.md after each task
+
+## Booking calendar
+
+- Public availability comes from `GET /api/v1/service/[serviceId]/slots`. Use
+  its timestamps when posting a booking. The API confirms automatically and
+  checks the timestamp again under a PostgreSQL transaction lock per business.
+- Weekly hours and dated openings use Costa Rica wall-clock values. Bookings
+  and business-wide blocks store instants. Format those with
+  `app/lib/calendar.ts` so browser timezones do not change what users see.
+- Set `RESEND_API_KEY` and `BOOKING_EMAIL_FROM` (a verified Resend sender) in
+  the server environment to email both parties. The booking is committed before
+  email submission, and its API response includes the email outcome.
+
+- Existing appointments with `pending` came from the earlier request flow or
+  seed fixtures. Keep their stored status until the owner resolves them.
+  Booking confirmation status is separate from the email submission outcome.
+
+## Hydration diagnostics
+
+- If a development hydration diff shows unfamiliar attributes on `html` or
+  `body`, compare the server response with the live DOM in a clean browser
+  context. Browser extensions can modify the DOM before React hydrates.
+
+## Owner agenda
+
+- The owner dashboard opens on Agenda. Keep the daily details and month cells
+  in Costa Rica time. Fetch the whole visible grid using `dueDateFrom` and
+  exclusive `dueDateTo` on appointment GET, and follow the returned pagination.
+- Schedule block GET accepts `from` and `to` to find overlapping blocks for
+  the grid. The availability panel omits the range to show current blocks.
+
+- Selecting a date in Agenda opens the day timeline. Double-click a timeline
+  event or use its details button to open the appointment dialog.
+- Appointment descriptions are optional booking notes. In appointment GET,
+  only the owner agenda query (matching ownerId and businessId) includes the
+  description and client contact details. Restart a running Next dev server
+  after generating the Prisma client for a schema change.
+
+- Day view exposes a labeled return button. Returning to the month keeps
+  the selected date and restores focus to that day in the grid.
+
+- The Catalogs and Services panel uses the agenda's indigo and lavender
+  palette. Keep the catalog filter and service list scoped to the selected
+  business. Reuse the existing catalog and service endpoints for edits.
+
+- The Availability panel separates business-wide blocks from the selected
+  service's weekly hours and dated openings. Keep full-day end dates inclusive
+  in the form and convert them to an exclusive midnight in the block request.
+
+## Public directory
+
+- Explore loads active businesses across all owners from the paginated
+  directory endpoint. The directory and public business detail share a safe
+  projection containing active catalogs and services, plus a booking flag.
+  Keep account details out of public responses.
+
+## Personal calendar
+
+- The owner agenda and Mis citas share AppointmentCalendar and AgendaDay.
+  Personal queries use `mine=true&business=true` on appointment GET. The
+  server scopes `mine` to the authenticated client even when an owner is
+  signed in. Keep business blocks and owner controls in business mode.
+
+## Notification inbox
+
+- The bell leads to the notification inbox. Its count is the total returned
+  by the API. Group notices by their creation date in Costa Rica time and
+  use the existing notification access rules for clients and owners.
+
+## Profile and navigation
+
+- AppLayout uses AppIcon for every main navigation item. The profile picture
+  is a user-supplied HTTP(S) URL, with initials as its preview fallback.
+- Profile endpoints are scoped to the signed-in user. The collection POST
+  updates the latest active profile or creates the first profile under a
+  user row lock. An empty picture string restores initials.
+
+## Owner and client workflow
+
+- The same account can manage businesses and make personal bookings. Keep
+  Panel scoped to the selected business and Mis citas scoped to the client
+  identified by the session. The workflow audit is in flujo-dueno-y-cliente.txt.
+
+- Mi perfil edits the signed-in user's name, surname and phone via
+  `PUT /api/v1/user/[userId]`. Verify the target against the session user ID.
+  Sign-in email and password need a separate verified change flow.

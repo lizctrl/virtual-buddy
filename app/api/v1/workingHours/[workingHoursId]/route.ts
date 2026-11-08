@@ -2,8 +2,10 @@
 
 import { parseBoolean } from "@/app/lib/api/boolean";
 import { ApiResponse } from "@/app/lib/api/responses";
-import { withTimeStrings } from "@/app/lib/api/times";
+import { toTimeOfDay, withTimeStrings } from "@/app/lib/api/times";
 import { getCurrentUser } from "@/app/lib/auth";
+import { weekDays } from "@/app/lib/calendar";
+import { ownedService } from "@/app/lib/booking";
 import { prisma } from "@/app/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -81,7 +83,7 @@ export async function PUT(
         );
     }
 
-    const workingHours = await getWorkingHours(id, true);
+    const workingHours = await prisma.workingHours.findFirst({ where: { id, state: true, service: ownedService(currentUser.id) } });
 
     if (!workingHours) {
         return NextResponse.json(
@@ -89,10 +91,12 @@ export async function PUT(
             { status: 404 }
         );
     }
-    const data = await req.json()
-    if (!data.weekDay) {
+    const data = await req.json().catch(() => null);
+    const startTime = toTimeOfDay(data?.startTime);
+    const endTime = toTimeOfDay(data?.endTime);
+    if (!weekDays.includes(data?.weekDay) || !startTime || !endTime || endTime <= startTime) {
         return NextResponse.json(
-            ApiResponse.missingField("Missing weekDay field"),
+            ApiResponse.invalidParameter("Día u horario inválido."),
             { status: 400 }
         );
     }
@@ -103,8 +107,8 @@ export async function PUT(
         },
         data: {
             weekDay: data.weekDay,
-            startTime: data.startTime,
-            endTime: data.endTime
+            startTime,
+            endTime
         },
         select: {
             id: true,
@@ -116,7 +120,7 @@ export async function PUT(
         }
     })
     return NextResponse.json(
-        ApiResponse.success("Working hours updated successfully", { workingHours: updatedWorkingHours }),
+        ApiResponse.success("Working hours updated successfully", { workingHours: withTimeStrings(updatedWorkingHours) }),
         { status: 200 }
     );
 }
@@ -145,19 +149,20 @@ export async function DELETE(
             { status: 400 }
         );
     }
-    const workingHours = await getWorkingHours(id, true);
+    const workingHours = await prisma.workingHours.findFirst({ where: { id, state: true, service: ownedService(currentUser.id) } });
     if (!workingHours) {
         return NextResponse.json(
             ApiResponse.notFound("Working hours not found"),
             { status: 404 }
         );
     }
-    const updatedWorkingHours = await prisma.workingHours.delete({
-        where: { id: Number(workingHoursId) }
+    const updatedWorkingHours = await prisma.workingHours.update({
+        where: { id },
+        data: { state: false }
     }
     )
     return NextResponse.json(
-        ApiResponse.success("Working hours deleted successfully", { workingHours: updatedWorkingHours }),
+        ApiResponse.success("Working hours deleted successfully", { workingHours: withTimeStrings(updatedWorkingHours) }),
         { status: 200 }
     );
 }

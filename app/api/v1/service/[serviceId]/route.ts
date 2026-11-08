@@ -3,6 +3,8 @@
 import { parseBoolean } from "@/app/lib/api/boolean";
 import { ApiResponse } from "@/app/lib/api/responses";
 import { getCurrentUser } from "@/app/lib/auth";
+import { lockCalendar, ownedService, visibleAppointments } from "@/app/lib/booking";
+import { maxDuration } from "@/app/lib/calendar";
 import { prisma } from "@/app/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -67,7 +69,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ serv
     const appointments = appointmentsResult.value ?? false;
 
     // database
-    const service = await getService(id, catalog, availability, workingHours, appointments);
+    const service = await getService(id, currentUser.id, catalog, availability, workingHours, appointments);
     if (!service) {
         return NextResponse.json(
             ApiResponse.notFound("Service not found"),
@@ -82,6 +84,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ serv
 }
 async function getService(
     serviceId: number,
+    userId: number,
     catalog = false,
     availability = false,
     workingHours = false,
@@ -89,17 +92,44 @@ async function getService(
 ) {
     return prisma.service.findUnique({
         where: {
-            id: serviceId
+            id: serviceId, state: true
         },
         select: {
             id: true,
             name: true,
             catalogId: true,
             state: true,
-            appointments,
+            durationMinutes: true,
+            appointments: appointments ? { where: {
+                state: true,
+                ...visibleAppointments(userId)
+            } } : false,
             availability,
             workingHours,
             catalog
         }
     });
+}
+
+export async function PUT(req: Request, context: RouteContext<"/api/v1/service/[serviceId]">) {
+    const user = await getCurrentUser();
+    if (!user) return Response.json(ApiResponse.unauthenticated("Inicia sesión."), { status: 401 });
+    const id = Number((await context.params).serviceId);
+    const { durationMinutes } = await req.json().catch(() => ({})) ?? {};
+    if (!Number.isInteger(id) || id <= 0 || id > 2_147_483_647 ||
+        !Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > maxDuration) {
+        return Response.json(ApiResponse.invalidParameter("Servicio o duración inválidos."), { status: 400 });
+    }
+
+    const where = { id, ...ownedService(user.id) };
+    const service = await prisma.service.findFirst({
+        where,
+        select: { catalog: { select: { businessId: true } } }
+    });
+    if (!service) return Response.json(ApiResponse.notFound("Servicio no encontrado."), { status: 404 });
+    const updated = await prisma.$transaction(async tx => {
+        await lockCalendar(tx, service.catalog.businessId);
+        return tx.service.update({ where, data: { durationMinutes } });
+    });
+    return Response.json(ApiResponse.success("Duración actualizada.", { service: updated }));
 }

@@ -6,6 +6,7 @@ import { parseRanges } from "@/app/lib/api/ranges";
 import { ApiResponse } from "@/app/lib/api/responses";
 import { parseSorting } from "@/app/lib/api/sorting";
 import { getCurrentUser } from "@/app/lib/auth";
+import { businessLocation } from "@/app/lib/costa-rica-locations";
 import { prisma } from "@/app/lib/db";
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
@@ -141,6 +142,7 @@ export async function GET(req: NextRequest) {
                 name: true,
                 description: true,
                 ownerId: true,
+                cantonCode: true,
                 catalogs,
                 inventories,
                 owner: owner ? {
@@ -198,41 +200,25 @@ export async function POST(req: NextRequest) {
             { status: 401 }
         );
     }
-    const data = await req.json()
-    if (!data.name) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing name field"),
-            { status: 400 }
-        );
+    const data = await req.json().catch(() => null);
+    if (typeof data?.name !== "string" || !data.name.trim() ||
+        typeof data.description !== "string" || !data.description.trim()) {
+        return Response.json(ApiResponse.invalidParameter("Escribe el nombre y la descripción del negocio."), { status: 400 });
     }
-    if (!data.description) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing description field"),
-            { status: 400 }
-        );
+    if (data.ownerId !== undefined && data.ownerId !== currentUser.id) {
+        return Response.json(ApiResponse.unauthorized("Solo puedes crear negocios para tu cuenta."), { status: 403 });
     }
-    if (!data.ownerId) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing ownerId field"),
-            { status: 400 }
-        );
+    const cantonCode = data.cantonCode ?? null;
+    if (cantonCode !== null && (typeof cantonCode !== "number" || !businessLocation(cantonCode))) {
+        return Response.json(ApiResponse.invalidParameter("Selecciona un cantón válido."), { status: 400 });
     }
-    if (!Number.isInteger(data.ownerId) || data.ownerId <= 0) {
-        return NextResponse.json(
-            ApiResponse.invalidParameter("Invalid ownerId parameter"),
-            { status: 400 }
-        );
-    }
-    // database
     const business = await prisma.business.create({
         data: {
-            name: data.name,
-            description: data.description,
-            ownerId: data.ownerId,
+            name: data.name.trim(),
+            description: data.description.trim(),
+            ownerId: currentUser.id,
+            cantonCode
         }
-    })
-    return NextResponse.json(
-        ApiResponse.success("Business created successfully", { business }),
-        { status: 200 }
-    );
-}   
+    });
+    return Response.json(ApiResponse.success("Negocio creado.", { business }));
+}

@@ -3,224 +3,179 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-
-import AppLayout from "@/app/components/layout/AppLayout";
-import Input from "@/app/components/ui/Input";
 import Button from "@/app/components/ui/Button";
-import Badge from "@/app/components/ui/Badge";
 import { apiGet, apiPost } from "@/app/lib/api/client";
+import { calendarDate, calendarTimeZone, formatAppointment, maxAppointmentDescription } from "@/app/lib/calendar";
 
-interface Service {
-    id: number;
-    name: string;
-    catalogId: number;
-    state: boolean;
-    catalog: { id: number; name: string; businessId: number };
+interface BookingOptions {
+    service: { id: number; name: string; business: string; durationMinutes: number };
+    starts: string[];
 }
-interface Availability {
-    id: number;
-    date: string;
-    startTime: string;
-    endTime: string;
-    status: string;
-    serviceId: number;
-    state: boolean;
-}
-interface WorkingHours {
-    id: number;
-    weekDay: string;
-    startTime: string;
-    endTime: string;
-    serviceId: number;
-    state: boolean;
-}
+
+const dayLabel = new Intl.DateTimeFormat("es-CR", {
+    weekday: "short", day: "numeric", month: "short", timeZone: "UTC"
+});
+const timeLabel = new Intl.DateTimeFormat("es-CR", {
+    hour: "numeric", minute: "2-digit", timeZone: calendarTimeZone
+});
 
 export default function ServiceDetailPage() {
-    const params = useParams<{ id: string }>();
-    const id = Number(params.id);
+    const { id } = useParams<{ id: string }>();
+    return <Booking key={id} id={id} />;
+}
 
-    const [service, setService] = useState<Service | null>(null);
-    const [slots, setSlots] = useState<Availability[]>([]);
-    const [hours, setHours] = useState<WorkingHours[]>([]);
+function Booking({ id }: { id: string }) {
+    const endpoint = `/api/v1/service/${id}/slots`;
+    const [options, setOptions] = useState<BookingOptions | null>(null);
     const [loading, setLoading] = useState(true);
-
-    const [date, setDate] = useState("");
-    const [time, setTime] = useState("");
-    const [loadError, setLoadError] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
+    const [selectedDay, setSelectedDay] = useState("");
+    const [selected, setSelected] = useState("");
+    const [description, setDescription] = useState("");
+    const [loadError, setLoadError] = useState("");
+    const [bookingError, setBookingError] = useState("");
+    const [needsLogin, setNeedsLogin] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [confirmation, setConfirmation] = useState<{
+        appointment: { id: number; dueDate: string };
+        email: "accepted" | "unconfigured" | "failed";
+    } | null>(null);
 
     useEffect(() => {
-        if (!id) return;
-        Promise.all([
-            apiGet<{ service: Service }>(`/api/v1/service/${id}`),
-            apiGet<{ availabilities: Availability[] }>(
-                `/api/v1/availability?serviceId=${id}&state=true&limit=100`
-            ),
-            apiGet<{ workingHours: WorkingHours[] }>(
-                `/api/v1/workingHours?serviceId=${id}&state=true&limit=100`
-            )
-        ]).then(([s, a, w]) => {
-            if (!s.ok) {
-                setLoadError(s.message);
-                return;
-            }
-            if (!a.ok) {
-                setLoadError(a.message);
-                return;
-            }
-            if (!w.ok) {
-                setLoadError(w.message);
-                return;
-            }
-            setService(s.data.service);
-            setSlots(a.data.availabilities);
-            setHours(w.data.workingHours);
-        }).finally(() => setLoading(false));
-    }, [id]);
-
-    async function handleBook(e: React.FormEvent) {
-        e.preventDefault();
-        setError(null);
-        setSuccess(null);
-        setSubmitting(true);
-
-        const r = await apiPost("/api/v1/appointment", {
-            serviceId: id,
-            dueDate: new Date(`${date}T${time}`).toISOString()
+        let active = true;
+        apiGet<BookingOptions>(endpoint).then(result => {
+            if (!active) return;
+            if (result.ok) setOptions(result.data);
+            else setLoadError(result.message);
+            setLoading(false);
         });
-        setSubmitting(false);
+        return () => { active = false; };
+    }, [endpoint]);
 
-        if (!r.ok) {
-            setError(r.message || "Could not book appointment");
-            return;
+    const byDay = new Map<string, string[]>();
+    for (const start of options?.starts ?? []) {
+        const day = calendarDate(new Date(start));
+        const times = byDay.get(day) ?? [];
+        times.push(start);
+        byDay.set(day, times);
+    }
+    const days = [...byDay.keys()];
+    const day = byDay.has(selectedDay) ? selectedDay : days[0];
+    const times = byDay.get(day) ?? [];
+
+    async function book(event: React.FormEvent) {
+        event.preventDefault();
+        if (!selected || submitting) return;
+        setSubmitting(true);
+        setBookingError("");
+        setNeedsLogin(false);
+        const result = await apiPost<NonNullable<typeof confirmation>>("/api/v1/appointment", {
+            serviceId: Number(id), dueDate: selected, description
+        });
+        if (result.ok) {
+            setConfirmation(result.data);
+        } else {
+            setBookingError(result.message);
+            setNeedsLogin(result.status === 401);
+            if (result.status === 409) {
+                setSelected("");
+                const fresh = await apiGet<BookingOptions>(endpoint);
+                if (fresh.ok) setOptions(fresh.data);
+                else setLoadError(fresh.message);
+            }
         }
-        setSuccess("Appointment booked! The business will confirm it soon.");
-        setDate("");
-        setTime("");
+        setSubmitting(false);
     }
-
-    if (loading) {
-        return (
-            <AppLayout>
-                <p className="text-gray-500">Loading...</p>
-            </AppLayout>
-        );
-    }
-
-    if (!service) {
-        return (
-            <AppLayout>
-                <p className={loadError ? "text-red-600" : "text-gray-500"}>
-                    {loadError ?? "Service not found."}
-                </p>
-            </AppLayout>
-        );
-    }
-
-    const availableSlots = slots.filter(s => s.status === "available");
 
     return (
-        <AppLayout>
-            <Link
-                href="/explore"
-                className="mb-4 inline-block text-sm text-blue-600 hover:underline"
-            >
-                ← Back to explore
-            </Link>
-
-            <h1 className="mb-1 text-2xl font-bold text-gray-900">
-                {service.name}
-            </h1>
-            <p className="mb-8 text-gray-500">
-                Catalog: {service.catalog?.name}
-            </p>
-
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div className="rounded-xl border border-gray-200 bg-white p-6">
-                    <h2 className="mb-4 text-lg font-semibold text-gray-900">
-                        Working hours
-                    </h2>
-                    <ul className="space-y-1">
-                        {hours.map(h => (
-                            <li key={h.id} className="text-sm text-gray-700">
-                                {h.weekDay}: {h.startTime} – {h.endTime}
-                            </li>
-                        ))}
-                        {hours.length === 0 && (
-                            <li className="text-sm text-gray-500">
-                                No working hours defined.
-                            </li>
-                        )}
-                    </ul>
-                </div>
-
-                <div className="rounded-xl border border-gray-200 bg-white p-6">
-                    <h2 className="mb-4 text-lg font-semibold text-gray-900">
-                        Available slots
-                    </h2>
-                    <ul className="space-y-2">
-                        {availableSlots.map(s => (
-                            <li
-                                key={s.id}
-                                className="flex items-center gap-2 text-sm text-gray-700"
-                            >
-                                <span>
-                                    {s.date} {s.startTime} – {s.endTime}
-                                </span>
-                                <Badge variant="success">{s.status}</Badge>
-                            </li>
-                        ))}
-                        {availableSlots.length === 0 && (
-                            <li className="text-sm text-gray-500">
-                                No available slots right now.
-                            </li>
-                        )}
-                    </ul>
-                </div>
+        <main lang="es" className="min-h-screen bg-slate-50 px-4 py-8 sm:py-12">
+            <div className="mx-auto max-w-2xl">
+                <Link href="/explore" className="text-sm font-medium text-blue-700 hover:underline">
+                    ← Explorar servicios
+                </Link>
+                <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+                    {loading && <p role="status">Cargando horarios…</p>}
+                    {loadError && <p role="alert" className="text-red-700">{loadError}</p>}
+                    {options && (
+                        <>
+                            <p className="text-sm font-medium text-blue-700">{options.service.business}</p>
+                            <h1 className="mt-1 text-3xl font-bold text-slate-900">{options.service.name}</h1>
+                            <p className="mt-2 text-sm text-slate-600">
+                                {options.service.durationMinutes} min · Hora de Costa Rica
+                            </p>
+                            {confirmation ? (
+                                <div role="status" className="mt-6 rounded-xl bg-emerald-50 p-5 text-emerald-950">
+                                    <h2 className="text-lg font-bold">Cita confirmada</h2>
+                                    <p className="mt-1">{formatAppointment(confirmation.appointment.dueDate)} · Reserva #{confirmation.appointment.id}</p>
+                                    <p className="mt-2 text-sm">
+                                        {confirmation.email === "accepted"
+                                            ? "Se envió la confirmación al cliente y al negocio."
+                                            : "Tu reserva quedó guardada. El correo de confirmación no pudo enviarse."}
+                                    </p>
+                                    <Link href="/my-appointments" className="mt-4 inline-block text-sm font-semibold underline">Ver mis citas</Link>
+                                </div>
+                            ) : days.length === 0 ? (
+                                <div className="mt-6 space-y-3">
+                                    {bookingError && <p role="alert" className="text-sm text-red-700">{bookingError}</p>}
+                                    <p className="rounded-lg bg-slate-100 p-4 text-sm text-slate-700">
+                                        No hay horarios disponibles en los próximos 60 días.
+                                    </p>
+                                </div>
+                            ) : (
+                                <form onSubmit={book} className="mt-6 space-y-6">
+                                    <div className="space-y-2">
+                                        <label htmlFor="booking-day" className="block font-semibold text-slate-900">1. Elige un día</label>
+                                        <select
+                                            id="booking-day"
+                                            className="w-full rounded-md border border-slate-300 bg-white p-3 text-slate-900"
+                                            value={day}
+                                            disabled={submitting}
+                                            onChange={e => { setSelectedDay(e.target.value); setSelected(""); setBookingError(""); }}
+                                        >
+                                            {days.map(key => <option key={key} value={key}>{dayLabel.format(new Date(key))}</option>)}
+                                        </select>
+                                    </div>
+                                    <fieldset disabled={submitting}>
+                                        <legend className="mb-2 font-semibold text-slate-900">2. Elige una hora</legend>
+                                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                                            {times.map(start => (
+                                                <label key={start} className="cursor-pointer">
+                                                    <input
+                                                        className="peer sr-only"
+                                                        type="radio"
+                                                        name="booking-time"
+                                                        value={start}
+                                                        checked={selected === start}
+                                                        onChange={() => { setSelected(start); setBookingError(""); }}
+                                                    />
+                                                    <span className="block rounded-md border border-slate-300 px-1 py-2.5 text-center text-sm text-slate-800 peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:font-semibold peer-focus-visible:ring-2 peer-focus-visible:ring-blue-600">
+                                                        {timeLabel.format(new Date(start))}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </fieldset>
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="booking-description" className="block text-sm font-semibold text-slate-900">Nota para el negocio <span className="font-normal text-slate-500">(opcional)</span></label>
+                                        <textarea id="booking-description" rows={2} maxLength={maxAppointmentDescription}
+                                            value={description} onChange={e => setDescription(e.target.value)} disabled={submitting}
+                                            placeholder="Agrega un detalle que debamos saber sobre tu cita"
+                                            className="w-full rounded-md border border-slate-300 p-3 text-sm text-slate-900" />
+                                    </div>
+                                    {bookingError && <p role="alert" className="text-sm text-red-700">{bookingError}</p>}
+                                    {needsLogin && (
+                                        <Link href={`/login?next=/services/${id}`} className="block text-sm font-semibold text-blue-700 underline">
+                                            Inicia sesión para continuar
+                                        </Link>
+                                    )}
+                                    <Button type="submit" disabled={!selected || submitting} className="w-full py-3">
+                                        {submitting ? "Confirmando…" : "Confirmar cita"}
+                                    </Button>
+                                </form>
+                            )}
+                        </>
+                    )}
+                </section>
             </div>
-
-            <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
-                <h2 className="mb-4 text-lg font-semibold text-gray-900">
-                    Book an appointment
-                </h2>
-                <form
-                    onSubmit={handleBook}
-                    className="flex flex-wrap items-end gap-3"
-                >
-                    <Input
-                        id="date"
-                        name="date"
-                        type="date"
-                        label="Date"
-                        value={date}
-                        onChange={e => setDate(e.target.value)}
-                        required
-                    />
-                    <Input
-                        id="time"
-                        name="time"
-                        type="time"
-                        label="Time"
-                        value={time}
-                        onChange={e => setTime(e.target.value)}
-                        required
-                    />
-                    <Button type="submit" disabled={submitting}>
-                        {submitting ? "Booking..." : "Book"}
-                    </Button>
-                </form>
-
-                {error && (
-                    <p className="mt-3 text-sm text-red-600">{error}</p>
-                )}
-                {success && (
-                    <p className="mt-3 text-sm text-green-600">
-                        {success}
-                    </p>
-                )}
-            </div>
-        </AppLayout>
+        </main>
     );
 }

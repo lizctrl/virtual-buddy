@@ -3,6 +3,7 @@
 import { parseBoolean } from "@/app/lib/api/boolean";
 import { ApiResponse } from "@/app/lib/api/responses";
 import { getCurrentUser } from "@/app/lib/auth";
+import { parseProfilePicture } from "@/app/lib/profile-picture";
 import { prisma } from "@/app/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -48,14 +49,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prof
     }
     const user = userResult.value ?? false;
 
-    const profile = await getProfile(id, user, picture);
-    if (!profile) {
-        return NextResponse.json(
-            ApiResponse.notFound("Profile not found"),
-            { status: 404 }
-        );
-    }
-
+    const profile = await getProfile(id, currentUser.id, user, picture);
     if (!profile) {
         return NextResponse.json(
             ApiResponse.notFound("Profile not found"),
@@ -95,7 +89,7 @@ export async function PUT(
         );
     }
 
-    const profile = await getProfile(id, true);
+    const profile = await getProfile(id, currentUser.id);
 
     if (!profile) {
         return NextResponse.json(
@@ -103,20 +97,16 @@ export async function PUT(
             { status: 404 }
         );
     }
-    const data = await req.json()
-    if (!data.picture) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing picture field"),
-            { status: 400 }
-        );
+    const data = await req.json().catch(() => null);
+    const picture = parseProfilePicture(data?.picture);
+    if (picture === null) {
+        return NextResponse.json(ApiResponse.invalidParameter("Usa una dirección de imagen que empiece con https:// o http://."), { status: 400 });
     }
     // database
     const updatedProfile = await prisma.profile.update({
-        where: {
-            id
-        },
+        where: { id, userId: currentUser.id, state: true },
         data: {
-            picture: data.picture
+            picture
         },
         select: {
             id: true,
@@ -156,27 +146,27 @@ export async function DELETE(
             { status: 400 }
         );
     }
-    const profile = await getProfile(id, true);
+    const profile = await getProfile(id, currentUser.id);
     if (!profile) {
         return NextResponse.json(
             ApiResponse.notFound("Profile not found"),
             { status: 404 }
         );
     }
-    const updatedProfile = await prisma.profile.delete({
-        where: { id: Number(profileId) }
-    }
-    )
+    const updatedProfile = await prisma.profile.update({
+        where: { id, userId: currentUser.id, state: true },
+        data: { state: false }
+    });
     return NextResponse.json(
         ApiResponse.success("Profile deleted successfully", { profile: updatedProfile }),
         { status: 200 }
     );
 }
 
-async function getProfile(profileId: number, user: boolean = false, picture: boolean = false) {
+async function getProfile(profileId: number, userId: number, user: boolean = false, picture: boolean = false) {
     return prisma.profile.findUnique({
         where: {
-            id: profileId
+            id: profileId, userId, state: true
         },
         select: {
             id: true,
@@ -192,10 +182,9 @@ async function getProfile(profileId: number, user: boolean = false, picture: boo
                     last_name: true,
                     state: true,
                     phone: true,
-                    password: true,
                     businesses: true,
                     appointments: true,
-                    moderations: true,
+                    moderations: { select: { id: true, createTime: true, userId: true, businessId: true, status: true, state: true } },
                     profiles: true
                 }
             } : false

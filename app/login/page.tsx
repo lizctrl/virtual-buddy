@@ -1,6 +1,8 @@
 import LoginForm from "@/app/components/auth/LoginForm";
 
-export default function LoginPage() {
+export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+    const { next } = await searchParams;
+    const destination = typeof next === "string" && /^\/services\/\d+$/.test(next) ? next : "/dashboard";
     return (
         <main
             className="
@@ -32,7 +34,7 @@ export default function LoginPage() {
                     </p>
                 </div>
 
-                <LoginForm />
+                <LoginForm destination={destination} />
             </div>
         </main>
     );

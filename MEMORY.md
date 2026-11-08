@@ -214,3 +214,127 @@
   documented in AGENTS.md as manual checks
 - history before this rule: 23 commits, some freeform Spanish, capitalized `Feat:`,
   typos (`tebles`, `pasword`, `uatenticacion`) — not rewritten, left as-is
+
+## Self-service booking (2026-11-07)
+
+- `/services/:id` shows available dates and times publicly. The existing
+  client account is required to confirm. Sign-in returns to that service.
+- `app/lib/booking.ts` is the source of availability for both the public
+  picker and booking creation. It offers the next 60 days in Costa Rica time,
+  using weekly windows, dated openings, exclusions and existing appointments.
+- One appointment occupies the business across all its services. Booking
+  writes, rescheduling, cancellations and creation of business-wide blocks
+  share a PostgreSQL transaction advisory lock keyed by business id.
+- New services default to 30 minutes. The duration can be set in the service
+  panel and a new appointment snapshots its end time. Legacy active appointments
+  without an end time occupy 30 minutes. Cancelling preserves the record and
+  makes the time available again if it is still in the configured calendar.
+- Resend receives a separate confirmation for each recipient. Enable it using
+  `RESEND_API_KEY` and `BOOKING_EMAIL_FROM`. Provider acceptance is tracked in
+  the response, with transient retry and an idempotency key. A mail failure
+  leaves the booking confirmed. No background retry queue is configured.
+- Prisma schema was applied to the local DB. An isolated schema was used to
+  verify overlapping requests, automatic confirmation, permissions, cancellation,
+  blocks and the two email recipients using a simulated provider.
+
+## Local hydration report (2026-11-07)
+
+- `/services/9301` on port 3000 loaded without hydration errors in a clean
+  Chrome context. Server and live root attributes matched, and the slots
+  endpoint returned HTTP 200.
+- Injecting `data-lt-installed` and `suppresshydrationwarning` on `html` and
+  `cz-shortcut-listen` on `body` before hydration reproduced the reported diff.
+  These attributes were absent from the server HTML. The app required no code change.
+
+## Pending appointments after switching booking flows
+
+- The old appointment POST defaulted to `pending`. Seed fixtures also include
+  pending rows. Existing pending appointments still hold their time and can
+  be confirmed or rejected manually by the owner in the Citas tab.
+- Verified in the local API that the reported 8:54 a.m. appointment on Nov 8
+  is the stored pending row #9405. The later 9:30 a.m. row #9406 is confirmed.
+  New self-service reservations persist as confirmed before email submission.
+
+## Owner agenda calendar
+
+- The Dashboard opens with the selected business's monthly Agenda. Choose a
+  date for the client's name, service, time, status and appointment actions.
+  The day detail is beside the month on wide screens and below it on mobile.
+- The agenda uses the existing appointment and schedule block routes with
+  range filters. It includes adjacent dates in the visible grid and fetches
+  every appointment page for that interval.
+
+## Daily agenda and appointment details
+
+- A date click switches from Mes to Día. The day timeline and mini-calendar
+  share the selected date in Costa Rica time. The timeline puts overlapping
+  appointments in separate lanes and marks schedule blocks.
+- Double-clicking a timeline appointment opens an anchored dialog. The event
+  details button and daily list also open it. The dialog includes service,
+  status, reservation number, time, duration, client contact and booking note.
+- Booking POST accepts an optional description of up to 500 characters.
+  Existing appointments have a null description. The schema was pushed to
+  local PostgreSQL and the dev server refreshed to load the regenerated client.
+
+- The daily toolbar uses «Volver al calendario» in place of the Day/Month
+  switch. The monthly view keeps and highlights the date the user came from.
+
+## Catalog and service management
+
+- CatalogsServices lives under app/components/dashboard. It displays active
+  services grouped by catalog, with a sidebar filter and inline editors.
+- Successful creates and duration edits update the list from the API response.
+  Changing the dashboard business remounts the panel and clears its selection.
+
+## Availability panel
+
+- BusinessAvailability uses the agenda's indigo and lavender styling and
+  selects the first active service initially. A service change remounts its
+  schedule editor so old requests and drafts cannot appear under another service.
+- Weekly rows are ordered Monday to Sunday. Block, weekly, and dated forms
+  open on demand and update their lists from existing API responses.
+
+## Explore directory
+
+- Explore lists all active businesses and supports accent-insensitive search
+  by business name, description, catalog, or service. Business cards use
+  initials and a deterministic color because the schema has no logo field.
+- Business profiles are publicly readable and offer the existing service
+  slot picker. A booking still requires an account. Businesses without an
+  active owner or services remain visible in the business directory but do
+  not offer booking links.
+
+## Mis citas calendar
+
+- Mis citas uses AppointmentCalendar in personal mode for the same month,
+  day and appointment dialog as the owner agenda. Events show the service
+  and business name. Personal mode has no owner actions or schedule blocks.
+- Appointment GET supports `mine=true` to filter by the authenticated client
+  and `business=true` to include the associated business ID and name.
+
+## Notification inbox design
+
+- The navigation and inbox header use a bell icon. The inbox groups notices
+  by local date, shows event-specific icons, and pages the existing feed.
+- The notification list's optional appointment payload includes the client
+  name, service, and business. It formats legacy booking notices in Spanish
+  with the appointment's current time.
+
+## Profile and menu icons
+
+- Mi perfil shows account details and a picture URL editor. It previews the
+  draft image, falls back to initials, and shows save feedback in Spanish.
+- The profile reads the newest active record with `picture=true`. Previously
+  the list ignored the user filter and omitted the image by default, and POST
+  created a new row on every save. Profile access is now limited to its owner.
+- The main menu uses consistent outline icons and Spanish labels.
+
+## Owner and client workflow audit
+
+- flujo-dueno-y-cliente.txt records the current dual-context workflow, UI
+  limits, API-only actions, and priorities. Highest priority is ownership
+  enforcement for catalog and moderation writes and user deactivation.
+
+- Mi perfil now has an Editar datos form for name, surname and phone, with
+  immediate updates in the account header and sidebar. The owner/client
+  workflow report includes a suggested customer cancellation policy.

@@ -5,20 +5,23 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { apiGet, apiPost } from "@/app/lib/api/client";
+import AppIcon, { type AppIconName } from "@/app/components/ui/AppIcon";
 import { User } from "@/app/types/types";
 
-const navItems = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/explore", label: "Explore" },
-    { href: "/my-appointments", label: "My appointments" },
-    { href: "/notifications", label: "Notifications" },
-    { href: "/profile", label: "Profile" }
+const navItems: { href: string; label: string; icon: AppIconName }[] = [
+    { href: "/dashboard", label: "Panel", icon: "panel" },
+    { href: "/explore", label: "Explorar", icon: "explore" },
+    { href: "/my-appointments", label: "Mis citas", icon: "calendar" },
+    { href: "/notifications", label: "Notificaciones", icon: "notifications" },
+    { href: "/profile", label: "Mi perfil", icon: "profile" }
 ];
 
 export default function AppLayout({
-    children
+    children,
+    account
 }: {
     children: React.ReactNode;
+    account?: Pick<User, "name" | "email">;
 }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -46,9 +49,11 @@ export default function AppLayout({
         );
     }
 
+    const displayedUser = account ?? user;
+
     return (
-        <div className="flex min-h-screen bg-gray-50">
-            <aside className="flex w-64 flex-col border-r border-gray-200 bg-white">
+        <div className="flex min-h-screen flex-col bg-gray-50 text-gray-900 md:flex-row">
+            <aside className="flex flex-col border-b border-gray-200 bg-white md:w-56 md:shrink-0 md:border-r md:border-b-0 lg:w-64">
                 <div className="border-b border-gray-200 p-6">
                     <Link
                         href="/dashboard"
@@ -58,40 +63,43 @@ export default function AppLayout({
                     </Link>
                 </div>
 
-                <nav className="flex-1 space-y-1 p-4">
+                <nav aria-label="Menú principal" className="flex flex-1 flex-wrap gap-1 p-3 md:block md:space-y-1 md:p-4">
                     {navItems.map(item => (
                         <Link
                             key={item.href}
                             href={item.href}
+                            aria-current={pathname === item.href ? "page" : undefined}
                             className={`
-                                block rounded-md px-3 py-2 text-sm font-medium
-                                ${pathname === item.href
-                                    ? "bg-blue-50 text-blue-600"
-                                    : "text-gray-700 hover:bg-gray-100"}
+                                flex min-h-10 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-indigo-700
+                                ${pathname === item.href || (item.href === "/explore" && pathname.startsWith("/businesses/"))
+                                    ? "bg-indigo-50 text-indigo-800"
+                                    : "text-slate-700 hover:bg-slate-50"}
                             `}
                         >
+                            <AppIcon name={item.icon} className="size-4 shrink-0" />
                             {item.label}
                         </Link>
                     ))}
                 </nav>
 
                 <div className="border-t border-gray-200 p-4">
-                    <p className="truncate text-sm font-medium text-gray-900">
-                        {user?.name}
-                    </p>
-                    <p className="truncate text-xs text-gray-500">
-                        {user?.email}
-                    </p>
-                    <button
-                        onClick={handleLogout}
-                        className="mt-3 w-full text-left text-sm text-red-600 hover:text-red-700"
-                    >
-                        Sign out
-                    </button>
+                    {displayedUser ? (
+                        <>
+                            <p className="truncate text-sm font-medium text-gray-900">{displayedUser.name}</p>
+                            <p className="truncate text-xs text-gray-500">{displayedUser.email}</p>
+                            <button type="button" onClick={handleLogout} className="mt-3 inline-flex items-center gap-2 rounded text-sm font-medium text-rose-700 hover:underline focus-visible:outline-2">
+                                <AppIcon name="logout" className="size-4" /> Cerrar sesión
+                            </button>
+                        </>
+                    ) : (
+                        <Link href="/login" className="inline-flex items-center gap-2 rounded text-sm font-semibold text-indigo-700 hover:underline focus-visible:outline-2">
+                            <AppIcon name="login" className="size-4" /> Iniciar sesión
+                        </Link>
+                    )}
                 </div>
             </aside>
 
-            <main className="flex-1 overflow-y-auto p-8">
+            <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
                 {children}
             </main>
         </div>

@@ -3,6 +3,7 @@
 import { parseBoolean } from "@/app/lib/api/boolean";
 import { ApiResponse } from "@/app/lib/api/responses";
 import { getCurrentUser } from "@/app/lib/auth";
+import { visibleAppointments } from "@/app/lib/booking";
 import { prisma } from "@/app/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ noti
     }
     const appointment = appointmentResult.value ?? false;
 
-    const notification = await getNotification(id, appointment);
+    const notification = await getNotification(id, currentUser.id, appointment);
     if (!notification) {
         return NextResponse.json(
             ApiResponse.notFound("Notification not found"),
@@ -80,7 +81,7 @@ export async function PUT(
         );
     }
 
-    const notification = await getNotification(id, true);
+    const notification = await getNotification(id, currentUser.id);
 
     if (!notification) {
         return NextResponse.json(
@@ -95,7 +96,13 @@ export async function PUT(
             { status: 400 }
         );
     }
-    // database
+    const target = await prisma.appointment.findFirst({
+        where: { id: data.appointmentId, state: true, ...visibleAppointments(currentUser.id) },
+        select: { id: true }
+    });
+    if (!target) {
+        return NextResponse.json(ApiResponse.notFound("Appointment not found"), { status: 404 });
+    }
     const updatedNotification = await prisma.notification.update({
         where: {
             id
@@ -143,7 +150,7 @@ export async function DELETE(
             { status: 400 }
         );
     }
-    const notification = await getNotification(id, true);
+    const notification = await getNotification(id, currentUser.id);
     if (!notification) {
         return NextResponse.json(
             ApiResponse.notFound("Notification not found"),
@@ -160,10 +167,11 @@ export async function DELETE(
     );
 }
 
-async function getNotification(notificationId: number, appointment: boolean = false) {
+async function getNotification(notificationId: number, userId: number, appointment = false) {
     return prisma.notification.findUnique({
         where: {
-            id: notificationId
+            id: notificationId,
+            appointment: { state: true, ...visibleAppointments(userId) }
         },
         select: {
             id: true,

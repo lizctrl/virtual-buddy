@@ -1,9 +1,10 @@
 /// api/availability/[availabilityId]? service=true&business=true
 
-import { parseBoolean } from "@/app/lib/api/boolean";
 import { ApiResponse } from "@/app/lib/api/responses";
-import { withTimeStrings } from "@/app/lib/api/times";
+import { toTimeOfDay, withTimeStrings } from "@/app/lib/api/times";
 import { getCurrentUser } from "@/app/lib/auth";
+import { parseDay } from "@/app/lib/calendar";
+import { ownedService } from "@/app/lib/booking";
 import { prisma } from "@/app/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -70,7 +71,7 @@ export async function PUT(
         );
     }
 
-    const availability = await getAvailability(id);
+    const availability = await prisma.availability.findFirst({ where: { id, state: true, service: ownedService(currentUser.id) } });
 
     if (!availability) {
         return NextResponse.json(
@@ -78,36 +79,13 @@ export async function PUT(
             { status: 404 }
         );
     }
-    const data = await req.json()
-    if (!data.date) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing date field"),
-            { status: 400 }
-        );
-    }
-    if (!data.time) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing time field"),
-            { status: 400 }
-        );
-    }
-    if (!data.duration) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing duration field"),
-            { status: 400 }
-        );
-    }
-    if (!data.serviceId) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing serviceId field"),
-            { status: 400 }
-        );
-    }
-    if (!Number.isInteger(data.serviceId) || data.serviceId <= 0) {
-        return NextResponse.json(
-            ApiResponse.invalidParameter("Invalid serviceId parameter"),
-            { status: 400 }
-        );
+    const data = await req.json().catch(() => null);
+    const date = parseDay(data?.date);
+    const startTime = toTimeOfDay(data?.startTime, data?.date);
+    const endTime = toTimeOfDay(data?.endTime, data?.date);
+    if (!date || !startTime || !endTime || endTime <= startTime ||
+        (data.serviceId !== undefined && data.serviceId !== availability.serviceId)) {
+        return NextResponse.json(ApiResponse.invalidParameter("Fecha, horario o servicio inválido."), { status: 400 });
     }
     // database
     const updatedAvailability = await prisma.availability.update({
@@ -115,11 +93,10 @@ export async function PUT(
             id
         },
         data: {
-            date: data.date,
-            startTime: data.time,
-            endTime: data.time + data.duration,
+            date,
+            startTime,
+            endTime,
             status: data.status,
-            serviceId: data.serviceId,
         },
         select: {
             id: true,
@@ -133,7 +110,7 @@ export async function PUT(
         }
     })
     return NextResponse.json(
-        ApiResponse.success("Availability updated successfully", { availability: updatedAvailability }),
+        ApiResponse.success("Availability updated successfully", { availability: withTimeStrings(updatedAvailability) }),
         { status: 200 }
     );
 }
@@ -163,7 +140,7 @@ export async function DELETE(
             { status: 400 }
         );
     }
-    const availability = await getAvailability(id);
+    const availability = await prisma.availability.findFirst({ where: { id, state: true, service: ownedService(currentUser.id) } });
     if (!availability) {
         return NextResponse.json(
             ApiResponse.notFound("Availability not found"),
@@ -189,7 +166,7 @@ export async function DELETE(
         }
     })
     return NextResponse.json(
-        ApiResponse.success("Availability deactivated successfully", { availability: updatedAvailability }),
+        ApiResponse.success("Availability deactivated successfully", { availability: withTimeStrings(updatedAvailability) }),
         { status: 200 }
     );
 }

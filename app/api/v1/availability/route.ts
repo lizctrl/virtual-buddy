@@ -7,6 +7,8 @@ import { ApiResponse } from "@/app/lib/api/responses";
 import { toTimeOfDay, withTimeStrings } from "@/app/lib/api/times";
 import { parseSorting } from "@/app/lib/api/sorting";
 import { getCurrentUser } from "@/app/lib/auth";
+import { ownedService } from "@/app/lib/booking";
+import { parseDay } from "@/app/lib/calendar";
 import { prisma } from "@/app/lib/db";
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
@@ -176,9 +178,10 @@ export async function POST(req: NextRequest) {
         );
     }
     const data = await req.json()
-    if (!data.date) {
+    const date = parseDay(data.date);
+    if (!date) {
         return NextResponse.json(
-            ApiResponse.missingField("Missing date field"),
+            ApiResponse.invalidParameter("Selecciona una fecha válida."),
             { status: 400 }
         );
     }
@@ -220,10 +223,17 @@ export async function POST(req: NextRequest) {
             { status: 400 }
         );
     }
+    const service = await prisma.service.findFirst({
+        where: { id: data.serviceId, ...ownedService(currentUser.id) },
+        select: { id: true }
+    });
+    if (!service) {
+        return NextResponse.json(ApiResponse.notFound("Servicio no encontrado."), { status: 404 });
+    }
     // database
     const availability = await prisma.availability.create({
         data: {
-            date: new Date(data.date),
+            date,
             startTime,
             endTime,
             status: data.status ?? "available",

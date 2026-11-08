@@ -1,0 +1,2 @@
+export const panelPrimary = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-indigo-700 px-3.5 py-2 text-sm font-semibold text-white hover:bg-indigo-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700 disabled:opacity-50";
+export const panelSecondary = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-indigo-700 disabled:opacity-50";

@@ -7,6 +7,7 @@ import { ApiResponse } from "@/app/lib/api/responses";
 import { parseSorting } from "@/app/lib/api/sorting";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/db";
+import { parseProfilePicture } from "@/app/lib/profile-picture";
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -49,6 +50,14 @@ export async function GET(req: NextRequest) {
     }
 
     const picture = pictureResult.value ?? false;
+    const stateResult = parseBoolean(searchParams, "state");
+    if (!stateResult.success) {
+        return NextResponse.json(ApiResponse.invalidParameter(stateResult.error), { status: 400 });
+    }
+    const requestedUser = searchParams.get("userId");
+    if (requestedUser !== null && Number(requestedUser) !== currentUser.id) {
+        return NextResponse.json(ApiResponse.unauthorized("Solo puedes consultar tu propio perfil."), { status: 403 });
+    }
 
     const idResult = parseRanges(searchParams);
     if (!idResult.success) {
@@ -86,7 +95,7 @@ export async function GET(req: NextRequest) {
 
 
     // Dynamic WHERE
-    const where: Prisma.ProfileWhereInput = {};
+    const where: Prisma.ProfileWhereInput = { userId: currentUser.id, state: stateResult.value ?? true };
 
 
     if (idFrom !== null || idTo !== null || excludedIds.length > 0) {
@@ -123,10 +132,9 @@ export async function GET(req: NextRequest) {
                         last_name: true,
                         state: true,
                         phone: true,
-                        password: true,
                         businesses: true,
                         appointments: true,
-                        moderations: true,
+                        moderations: { select: { id: true, createTime: true, userId: true, businessId: true, status: true, state: true } },
                         profiles: true
                     }
                 } : false
@@ -174,28 +182,28 @@ export async function POST(req: NextRequest) {
             { status: 401 }
         );
     }
-    const data = await req.json()
-    if (!data.userId) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing userId field"),
-            { status: 400 }
-        );
+    const data = await req.json().catch(() => null);
+    if (data?.userId !== undefined && data.userId !== currentUser.id) {
+        return NextResponse.json(ApiResponse.unauthorized("Solo puedes guardar tu propio perfil."), { status: 403 });
     }
-    if (!data.picture) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing picture field"),
-            { status: 400 }
-        );
+    const picture = parseProfilePicture(data?.picture);
+    if (picture === null) {
+        return NextResponse.json(ApiResponse.invalidParameter("Usa una dirección de imagen que empiece con https:// o http://."), { status: 400 });
     }
-    // database
-    const profile = await prisma.profile.create({
-        data: {
-            userId: data.userId,
-            picture: data.picture
-        }
-    })
-    return NextResponse.json(
-        ApiResponse.success("Profile created successfully", { profile }),
-        { status: 200 }
-    );
+
+    const userId = currentUser.id;
+    const profile = await prisma.$transaction(async tx => {
+        // Serialize the first save so simultaneous requests cannot create duplicate profiles.
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+        const existing = await tx.profile.findFirst({
+            where: { userId, state: true },
+            orderBy: { id: "desc" },
+            select: { id: true }
+        });
+        return existing
+            ? tx.profile.update({ where: { id: existing.id }, data: { picture } })
+            : tx.profile.create({ data: { userId, picture } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+
+    return NextResponse.json(ApiResponse.success("Perfil guardado.", { profile }));
 }

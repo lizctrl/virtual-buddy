@@ -6,6 +6,8 @@ import { parseRanges } from "@/app/lib/api/ranges";
 import { ApiResponse } from "@/app/lib/api/responses";
 import { parseSorting } from "@/app/lib/api/sorting";
 import { getCurrentUser } from "@/app/lib/auth";
+import { visibleAppointments } from "@/app/lib/booking";
+import { defaultDuration, maxDuration } from "@/app/lib/calendar";
 import { prisma } from "@/app/lib/db";
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
@@ -92,7 +94,7 @@ export async function GET(req: NextRequest) {
     const catalog = catalogResult.value ?? false;
     const availability = availabilityResult.value ?? false;
     const workingHours = workingHoursResult.value ?? false;
-    const appointments = appointmentsResult.value ?? false;
+    const appointmentUser = appointmentsResult.value ? await getCurrentUser() : null;
 
     const { page, limit, skip } = paginationResult;
 
@@ -129,7 +131,7 @@ export async function GET(req: NextRequest) {
                 name: true,
                 catalogId: true,
                 state: true,
-                appointments,
+                appointments: appointmentUser ? { where: { state: true, ...visibleAppointments(appointmentUser.id) } } : false,
                 availability,
                 workingHours,
                 catalog
@@ -194,11 +196,22 @@ export async function POST(req: NextRequest) {
             { status: 400 }
         );
     }
-    // database
+    const durationMinutes = data.durationMinutes ?? defaultDuration;
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > maxDuration) {
+        return NextResponse.json(ApiResponse.invalidParameter("Duración inválida."), { status: 400 });
+    }
+    const catalog = await prisma.catalog.findFirst({
+        where: { id: data.catalogId, state: true, business: { state: true, ownerId: currentUser.id } },
+        select: { id: true }
+    });
+    if (!catalog) {
+        return NextResponse.json(ApiResponse.notFound("Catálogo no encontrado."), { status: 404 });
+    }
     const service = await prisma.service.create({
         data: {
             name: data.name,
             catalogId: data.catalogId,
+            durationMinutes,
         }
     })
     return NextResponse.json(

@@ -6,6 +6,7 @@ import { parseDateRanges, parseRanges } from "@/app/lib/api/ranges";
 import { ApiResponse } from "@/app/lib/api/responses";
 import { parseSorting } from "@/app/lib/api/sorting";
 import { getCurrentUser } from "@/app/lib/auth";
+import { changeClientModeration, moderationChange } from "@/app/lib/moderation";
 import { prisma } from "@/app/lib/db";
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
@@ -88,7 +89,8 @@ export async function GET(req: NextRequest) {
     // Dynamic WHERE (scoped to businesses owned by the current user)
     const where: Prisma.ModerationWhereInput = {
         business: {
-            ownerId: currentUser.id
+            ownerId: currentUser.id,
+            state: true
         }
     };
 
@@ -122,6 +124,8 @@ export async function GET(req: NextRequest) {
                 createTime: true,
                 userId: true,
                 status: true,
+                reason: true,
+                businessId: true,
                 state: true,
                 user: user ? {
                     select: {
@@ -129,13 +133,7 @@ export async function GET(req: NextRequest) {
                         name: true,
                         email: true,
                         last_name: true,
-                        state: true,
-                        phone: true,
-                        password: true,
-                        businesses: true,
-                        appointments: true,
-                        moderations: true,
-                        profiles: true
+                        state: true
                     }
                 } : false
             },
@@ -182,65 +180,17 @@ export async function POST(req: NextRequest) {
             { status: 401 }
         );
     }
-    const data = await req.json()
-    if (!data.userId) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing userId field"),
-            { status: 400 }
-        );
+    const body = await req.json().catch(() => null);
+    const { businessId, userId } = body ?? {};
+    const change = moderationChange(body);
+    if (!Number.isInteger(businessId) || businessId <= 0 || businessId > 2_147_483_647 ||
+        !Number.isInteger(userId) || userId <= 0 || userId > 2_147_483_647 || !change) {
+        return Response.json(ApiResponse.invalidParameter("Selecciona un cliente válido e indica un motivo de hasta 500 caracteres para bloquearlo."), { status: 400 });
     }
-    if (!Number.isInteger(data.userId) || data.userId <= 0) {
-        return NextResponse.json(
-            ApiResponse.invalidParameter("Invalid userId parameter"),
-            { status: 400 }
-        );
+
+    const moderation = await changeClientModeration(currentUser.id, businessId, userId, change);
+    if (!moderation) {
+        return Response.json(ApiResponse.notFound("Cliente del negocio no encontrado."), { status: 404 });
     }
-    if (!data.businessId) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing businessId field"),
-            { status: 400 }
-        );
-    }
-    if (!Number.isInteger(data.businessId) || data.businessId <= 0) {
-        return NextResponse.json(
-            ApiResponse.invalidParameter("Invalid businessId parameter"),
-            { status: 400 }
-        );
-    }
-    if (!data.status) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing status field"),
-            { status: 400 }
-        );
-    }
-    // Verify the current user owns the business
-    const business = await prisma.business.findFirst({
-        where: { id: data.businessId, ownerId: currentUser.id }
-    });
-    if (!business) {
-        return NextResponse.json(
-            ApiResponse.unauthorized("You do not own this business"),
-            { status: 403 }
-        );
-    }
-    // Upsert: update existing moderation or create a new one
-    const existing = await prisma.moderation.findFirst({
-        where: { userId: data.userId, businessId: data.businessId }
-    });
-    const moderation = existing
-        ? await prisma.moderation.update({
-            where: { id: existing.id },
-            data: { status: data.status, state: true }
-        })
-        : await prisma.moderation.create({
-            data: {
-                userId: data.userId,
-                businessId: data.businessId,
-                status: data.status
-            }
-        });
-    return NextResponse.json(
-        ApiResponse.success("Moderation saved successfully", { moderation }),
-        { status: 200 }
-    );
-}   
+    return Response.json(ApiResponse.success(change.status === "banned" ? "Cliente bloqueado." : "Cliente desbloqueado.", { moderation }));
+}

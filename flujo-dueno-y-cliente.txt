@@ -1,0 +1,188 @@
+VIRTUAL BUDDY | FLUJO DEL DUEÑO QUE TAMBIÉN ES CLIENTE
+Revisión del código local del 7 de noviembre de 2026
+
+1. CÓMO FUNCIONA UNA SOLA CUENTA
+-------------------------------
+
+La misma persona puede administrar un negocio y reservar en otros.
+La aplicación identifica a la persona por su sesión y al dueño por su
+relación con cada negocio. Puede pasar de un contexto al otro desde el menú.
+
+  Panel         → citas recibidas y configuración del negocio seleccionado.
+  Explorar      → directorio de emprendimientos activos y sus servicios.
+  Mis citas     → reservas hechas por esta cuenta como cliente.
+  Notificaciones → avisos de sus reservas y de los negocios que administra.
+  Mi perfil     → datos personales y foto de la cuenta.
+
+Ejemplo. Laura administra un salón y reserva un masaje en otro negocio.
+El masaje aparece en Mis citas de Laura y en el Panel del negocio que
+ofrece el masaje. Las citas de los clientes del salón aparecen en el Panel
+de Laura cuando selecciona su salón.
+
+Si Laura reserva un servicio de su propio salón, el flujo actual lo permite
+si cumple las reglas de disponibilidad y moderación. Esa misma reserva
+aparece en ambos calendarios por sus dos vínculos. Una reserva personal en
+otro negocio no bloquea automáticamente el horario del salón.
+
+2. QUÉ PUEDE HACER HOY COMO DUEÑO
+--------------------------------
+
+NEGOCIO Y PUBLICACIÓN
+  - Crear su primer negocio con nombre y descripción desde el Panel.
+  - Cambiar entre sus negocios activos cuando ya tiene varios.
+  - Consultar el resumen de catálogos, servicios y citas.
+  - Compartir la página pública del negocio o un enlace de reserva.
+    El directorio muestra los negocios activos. Para ofrecer horarios,
+    el negocio necesita un dueño activo, un servicio activo y disponibilidad.
+
+CATÁLOGOS Y SERVICIOS
+  - Crear catálogos y agregar servicios dentro de ellos.
+  - Definir el nombre y la duración al crear el servicio.
+  - Editar la duración de un servicio existente y abrir su página de reserva.
+  - Cambiar la duración afecta las reservas futuras. Las citas que ya tienen
+    su hora de fin guardada conservan esa duración.
+
+DISPONIBILIDAD
+  - Agregar y quitar rangos semanales por servicio.
+  - Agregar y quitar aperturas puntuales en fechas específicas.
+  - Bloquear y desbloquear horas, días completos o un rango de fechas para
+    todos los servicios del negocio, por ejemplo una semana de vacaciones.
+  - El bloqueo impide nuevas reservas en el rango. Las citas confirmadas
+    anteriormente siguen en la agenda.
+  - El calendario usa la hora de Costa Rica. La capacidad es compartida
+    entre los servicios de cada negocio. Una cita pendiente o confirmada
+    ocupa ese horario para los demás servicios del mismo negocio.
+
+AGENDA
+  - Ver las citas recibidas y los bloqueos en la vista mensual y diaria.
+  - Abrir una cita para ver servicio, fecha, hora, duración, estado,
+    cliente, correo, teléfono y nota, cuando esos datos estén disponibles.
+  - Confirmar o rechazar citas pendientes del flujo anterior.
+  - Cancelar una cita confirmada futura desde su ficha. La cita conserva
+    su registro como cancelada y el horario vuelve a estar disponible
+    si el calendario todavía lo permite.
+  - Las reservas nuevas válidas quedan confirmadas automáticamente.
+    La creación vuelve a comprobar el horario antes de guardar y evita
+    que dos reservas activas se solapen en el mismo negocio.
+
+MODERACIÓN
+  - El servidor impide reservar a un cliente bloqueado en ese negocio.
+    El cliente todavía puede ver sus servicios y reservar en otros.
+  - La pantalla ofrece bloquear o desbloquear clientes que ya figuran en
+    el historial de moderación. Aún no hay un flujo para buscar y bloquear
+    por primera vez a un cliente desde la agenda.
+  - La pantalla actual tiene una falla. Solicita la lista sin pedir los
+    datos de usuario que intenta mostrar y sin limitarla al negocio
+    seleccionado. Con registros existentes puede fallar o mostrar una
+    lista de varios negocios propios. El bloqueo como regla funciona
+    en la reserva, pero la gestión desde la pantalla necesita corrección.
+
+3. QUÉ PUEDE HACER COMO CLIENTE CON ESA MISMA CUENTA
+---------------------------------------------------
+
+  1. Abrir Explorar y buscar un negocio o servicio.
+  2. Entrar al servicio, elegir un día y una hora libre, y añadir una nota
+     opcional de hasta 500 caracteres.
+  3. Confirmar con la sesión iniciada. El sistema comprueba que el horario
+     siga disponible y muestra la confirmación.
+  4. Abrir Mis citas para ver la reserva, el servicio, el negocio, el
+     horario, el estado y la nota. Puede usar la misma navegación mensual
+     y diaria que en el Panel.
+  5. Consultar los avisos en Notificaciones. La bandeja combina avisos de
+     sus propias reservas y de los negocios que administra.
+  6. En Mi perfil puede editar su nombre, apellidos y teléfono desde
+     Editar datos. También puede cambiar o quitar su foto. El correo de
+     inicio de sesión es de consulta.
+
+La reserva crea un aviso interno. El correo de confirmación a ambas partes
+depende de configurar Resend con un remitente verificado. Si falla el
+correo, la reserva ya guardada sigue confirmada. Las actualizaciones y
+cancelaciones generan un aviso interno. El envío por correo para esos
+cambios y los recordatorios automáticos están pendientes.
+
+4. QUÉ NO SE PUEDE EDITAR DESDE LA INTERFAZ ACTUAL
+-------------------------------------------------
+
+  - Negocio. Después de crearlo, falta editar nombre y descripción,
+    agregar logo, contacto o ubicación, pausar reservas y crear otro
+    negocio desde el Panel. El selector permite cambiar entre negocios
+    existentes.
+  - Catálogos. Se pueden crear, pero la pantalla carece de acciones para
+    renombrarlos o archivarlos. Existen rutas para esas operaciones que
+    necesitan controles de propiedad antes de conectarlas.
+  - Servicios. Después de crearlos, la duración es el campo editable.
+    Faltan edición de nombre, mover a otro catálogo, archivar y campos
+    como descripción, precio o imagen.
+  - Horarios. Los rangos y bloqueos se corrigen quitando el registro y
+    agregando uno nuevo. El servidor admite editar rangos semanales y
+    aperturas puntuales, pero la interfaz todavía carece de esa acción.
+  - Citas recibidas. Falta reprogramar desde la agenda. El servidor ya
+    admite mover una cita activa a un horario válido del mismo servicio.
+    La ficha tampoco permite cambiar servicio, cliente o nota, ni crear
+    una cita manual en nombre de un cliente.
+  - Citas personales. Mis citas permite consultar la reserva y su nota.
+    Para cancelar o reprogramar una cita de otro negocio, hoy el cliente
+    debe coordinar con ese negocio. La propiedad de un negocio no da
+    permisos sobre las reservas recibidas por otros.
+  - Cuenta. Falta un flujo para cambiar el correo de inicio de sesión o
+    la contraseña con verificación. Editar datos permite guardar nombre,
+    apellidos y teléfono.
+
+5. QUÉ RECOMIENDO PRIORIZAR
+---------------------------
+
+P0 | Cerrar los permisos antes de incorporar clientes reales.
+  - Hacer que el servidor obtenga el dueño desde la sesión al crear un
+    negocio. En creación, edición y archivo de catálogos, comprobar que
+    el negocio pertenezca a quien realiza la operación.
+  - Aplicar el mismo control a las rutas por ID de moderación. Limitar
+    los datos del cliente a los campos que la pantalla necesita y retirar
+    la selección del hash de contraseña de las respuestas de moderación.
+  - Revisar la desactivación de usuarios. La ruta actual autentica la
+    sesión y falta validar que la persona pueda desactivar la cuenta
+    indicada. Estos comportamientos son defectos de autorización.
+  - Probar con dueños de dos negocios distintos y un cliente que también
+    sea dueño. Verificar que solo pueda administrar su negocio y consultar
+    sus reservas personales.
+
+P1 | Hacer que el dueño pueda mantener su negocio sin ayuda.
+  - Agregar Configuración del negocio con edición de nombre, descripción
+    y logo, vista previa pública y un control para pausar nuevas reservas.
+  - Agregar edición de catálogos y servicios. Al archivar, ocultar la
+    opción para nuevas reservas y conservar las citas existentes.
+  - Completar Moderación por negocio. Desde una ficha de cita, permitir
+    bloquear al cliente para futuras reservas con confirmación explícita.
+
+P1 | Completar el ciclo de la cita.
+  - Ofrecer Reprogramar en la ficha del dueño usando el selector de
+    horarios libres y la validación que ya existe en el servidor.
+  - Dar al cliente Cancelar o Solicitar cambio desde Mis citas, con la
+    política de anticipación que defina el negocio.
+  - Activar y probar el correo real antes de anunciarlo. Después, agregar
+    avisos de cambios y cancelaciones y un recordatorio configurable.
+
+P2 | Afinar el uso de una sola cuenta.
+  - Mantener Panel y Mis citas separados. Añadir etiquetas como «Recibida»
+    y «Hecha por ti» en la bandeja, con acceso a la ficha correspondiente.
+  - Decidir si se permiten reservas en el propio negocio y si una cita
+    personal debe bloquear horas de trabajo. Son reglas independientes
+    que conviene hacer explícitas antes de automatizarlas.
+  - Agregar cambio verificado de correo y contraseña. Si se ofrecen varios puestos o
+    profesionales en un negocio, pasar a disponibilidad por persona o
+    recurso. La capacidad actual es de una cita a la vez por negocio.
+
+POLÍTICA SUGERIDA PARA CANCELACIONES DEL CLIENTE
+------------------------------------------------
+
+  - Desde Mis citas, permitir cancelar una reserva futura hecha por esa
+    cuenta, después de mostrar el servicio, la fecha y la política.
+  - Empezar con un plazo claro antes de la cita, por ejemplo 24 horas,
+    configurable por negocio. Mostrarlo antes de confirmar la reserva.
+    Si el plazo venció, ofrecer un modo de contactar al negocio.
+  - Guardar el estado cancelado, conservar el historial, avisar al dueño
+    y liberar el horario si el calendario todavía lo permite. Aplicar
+    las mismas reglas en el servidor.
+
+Alcance de la revisión
+La revisión fue de lectura del código local. El informe separa las opciones
+de pantalla de las capacidades y brechas de las rutas.

@@ -91,33 +91,31 @@ export async function PUT(
         );
     }
 
-    const user = await getUser(id);
+    if (id !== currentUser.id) {
+        return NextResponse.json(
+            ApiResponse.unauthorized("Solo puedes editar tus propios datos."),
+            { status: 403 }
+        );
+    }
 
-    if (!user) {
-        return NextResponse.json(
-            ApiResponse.notFound("User not found"),
-            { status: 404 }
-        );
+    const data = await request.json().catch(() => null);
+    const name = typeof data?.name === "string" ? data.name.trim() : "";
+    if (!name) {
+        return NextResponse.json(ApiResponse.invalidParameter("Escribe tu nombre."), { status: 400 });
     }
-    if (currentUser.email !== user.email) {
-        return NextResponse.json(
-            ApiResponse.unauthorized("User not authorized"),
-            { status: 401 }
-        );
+    if ((data.last_name !== undefined && typeof data.last_name !== "string") ||
+        (data.phone !== undefined && typeof data.phone !== "string")) {
+        return NextResponse.json(ApiResponse.invalidParameter("Revisa los apellidos y el teléfono."), { status: 400 });
     }
-    const data = await request.json()
-    if (!data.name) {
-        return NextResponse.json(
-            ApiResponse.missingField("Missing name field"),
-            { status: 400 }
-        );
-    }
+
     const updatedUser = await prisma.user.update({
         where: {
             id
         },
         data: {
-            name: data.name
+            name,
+            last_name: data.last_name?.trim(),
+            phone: data.phone?.trim()
         },
         select: {
             id: true,

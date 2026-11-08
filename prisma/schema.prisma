@@ -38,6 +38,7 @@ model Catalog {
 }
 
 model Service {
+  durationMinutes Int @default(30)
   id        Int    @id @default(autoincrement())
   name      String
   catalogId Int
@@ -53,6 +54,7 @@ model Service {
 }
 
 model Business {
+  cantonCode  Int?
   id          Int    @id @default(autoincrement())
   name        String
   description String
@@ -64,7 +66,7 @@ model Business {
   catalogs    Catalog[]
   inventories Inventory[]
   moderations Moderation[]
-
+  scheduleBlocks ScheduleBlock[]
 
   @@map("businesses")
 }
@@ -77,6 +79,8 @@ model Appointment {
   serviceId Int
   status    String
   dueDate   DateTime
+  endsAt    DateTime?
+  description String?
   state     Boolean @default(true)
 
   notifications Notification[]
@@ -129,6 +133,7 @@ model Item {
 }
 
 model Moderation {
+  reason     String?
   id         Int      @id @default(autoincrement())
   createTime DateTime @default(now())
   userId     Int
@@ -177,4 +182,17 @@ model WorkingHours {
   service Service @relation(fields: [serviceId], references: [id])
 
   @@map("working_hours")
+}
+
+model ScheduleBlock {
+  id         Int      @id @default(autoincrement())
+  businessId Int
+  startsAt   DateTime
+  endsAt     DateTime
+  state      Boolean  @default(true)
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, startsAt])
+  @@map("schedule_blocks")
 }

@@ -6,6 +6,7 @@ import { parseDateRanges, parseRanges } from "@/app/lib/api/ranges";
 import { ApiResponse } from "@/app/lib/api/responses";
 import { parseSorting } from "@/app/lib/api/sorting";
 import { getCurrentUser } from "@/app/lib/auth";
+import { visibleAppointments } from "@/app/lib/booking";
 import { prisma } from "@/app/lib/db";
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
 
 
     // Dynamic WHERE
-    const where: Prisma.NotificationWhereInput = {};
+    const where: Prisma.NotificationWhereInput = { appointment: { state: true, ...visibleAppointments(currentUser.id) } };
 
 
     if (idFrom !== null || idTo !== null || excludedIds.length > 0) {
@@ -114,6 +115,8 @@ export async function GET(req: NextRequest) {
 
     if (userId !== null || ownerId !== null) {
         where.appointment = {
+            state: true,
+            ...visibleAppointments(currentUser.id),
             ...(userId !== null && { userId }),
             ...(ownerId !== null && {
                 service: { catalog: { business: { ownerId } } }
@@ -142,10 +145,15 @@ export async function GET(req: NextRequest) {
                         status: true,
                         dueDate: true,
                         state: true,
+                        user: { select: { name: true, last_name: true } },
+                        service: { select: {
+                            name: true,
+                            catalog: { select: { business: { select: { name: true } } } }
+                        } }
                     }
                 } : false
             },
-            orderBy: [{ [sortBy]: sortOrder }]
+            orderBy: [{ [sortBy]: sortOrder }, ...(sortBy === "id" ? [] : [{ id: "desc" as const }])]
         }),
         prisma.notification.count({
             where
@@ -210,7 +218,14 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    // database
+    const appointment = await prisma.appointment.findFirst({
+        where: { id: data.appointmentId, state: true, ...visibleAppointments(currentUser.id) },
+        select: { id: true }
+    });
+    if (!appointment) {
+        return NextResponse.json(ApiResponse.notFound("Appointment not found"), { status: 404 });
+    }
+
     const notification = await prisma.notification.create({
         data: {
             appointmentId: data.appointmentId,
