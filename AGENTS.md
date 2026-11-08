@@ -53,6 +53,11 @@ Gotcha: the project is CJS (no `"type": "module"` in package.json), so
 - Schema: `prisma/schema.prisma` — models use `@@map` to snake_case table names (e.g., `User` → `users`)
 - All models have a `state: boolean` field — always filter with `state: true` in queries (soft-delete pattern)
 - After editing `schema.prisma`, run `npm run db:generate` then `npm run db:push`
+- An API 500 with an empty body after pulling schema changes usually means
+  the local database is behind the schema (e.g. missing `businesses.cantonCode`).
+  Preview with `npx prisma migrate diff --from-url "$DATABASE_URL"
+  --to-schema-datamodel prisma/schema.prisma --script`, then `npm run db:push`
+  and `npm run db:constraints`
 
 ## Auth
 
