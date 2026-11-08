@@ -11,6 +11,7 @@
     "db:push": "npx prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
     "prepare": "husky",
+    "test": "vitest run",
     "db:constraints": "npx prisma db execute --file prisma/sql/users-email-lowercase.sql --schema prisma/schema.prisma"
   },
   "dependencies": {
@@ -37,6 +38,7 @@
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }
